@@ -26,7 +26,7 @@ export async function register(_previousState: RegisterState, formData: FormData
   if (password.length < 8) {
     return { error: "Hasło musi mieć co najmniej 8 znaków." };
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || !Number.isFinite(Date.parse(`${birthDate}T00:00:00Z`))) {
+  if (!isCalendarDate(birthDate)) {
     return { error: "Podaj prawidłową datę urodzenia." };
   }
   if (birthDate > new Date().toISOString().slice(0, 10)) {
@@ -80,7 +80,13 @@ export async function register(_previousState: RegisterState, formData: FormData
     if (details.includes("signups not allowed") || details.includes("signup is disabled")) {
       return { error: "Rejestracja jest wyłączona w ustawieniach Supabase." };
     }
-    return { error: `Supabase odrzucił rejestrację: ${signupError.message}` };
+    if (details.includes("password") || details.includes("weak_password")) {
+      return { error: "Hasło nie spełnia wymagań Supabase. Ustaw inne hasło i spróbuj ponownie." };
+    }
+    if (details.includes("email") || details.includes("invalid_credentials")) {
+      return { error: "Sprawdź adres e-mail i spróbuj ponownie." };
+    }
+    return { error: "Nie udało się utworzyć konta. Spróbuj ponownie za chwilę lub skontaktuj się z administratorem." };
   }
 
   if (signupData.session) redirect("/");
@@ -88,6 +94,13 @@ export async function register(_previousState: RegisterState, formData: FormData
   return {
     message: "Konto utworzone. Sprawdź pocztę (również spam) i potwierdź adres e-mail. Potem zaloguj się — administrator zatwierdzi dostęp do strony.",
   };
+}
+
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 function readText(formData: FormData, name: string): string {

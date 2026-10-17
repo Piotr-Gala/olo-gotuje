@@ -15,7 +15,7 @@ export default async function Home() {
 
   const [sectionResult, postResult] = await Promise.all([
     supabase.from("sections").select("slug, title, is_active, sort_order").order("sort_order"),
-    supabase.from("posts").select("id, section_slug, author_id, title, slug, excerpt, content, metadata, status, published_at, created_at, post_images(id, storage_path, alt_text, sort_order)").order("created_at", { ascending: false }),
+    supabase.from("posts").select("id, section_slug, author_id, author_name, title, slug, excerpt, content, metadata, status, published_at, created_at, post_images(id, storage_path, alt_text, sort_order)").order("created_at", { ascending: false }),
   ]);
 
   return <FamilyBlog

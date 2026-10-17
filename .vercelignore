@@ -1,0 +1,7 @@
+.env*
+.mcp.json
+.git
+node_modules
+.next
+.appdata
+*.log
