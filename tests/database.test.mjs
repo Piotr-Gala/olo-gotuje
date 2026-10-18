@@ -52,8 +52,12 @@ async function seedAccounts(db) {
 }
 
 async function asAdmin(db, sql, params = []) {
+  return asUser(db, ids.admin, sql, params);
+}
+
+async function asUser(db, userId, sql, params = []) {
   return db.transaction(async tx => {
-    await tx.query("select set_config('request.jwt.claim.sub', $1, true)", [ids.admin]);
+    await tx.query("select set_config('request.jwt.claim.sub', $1, true)", [userId]);
     await tx.exec("set local role authenticated");
     return tx.query(sql, params);
   });
@@ -102,6 +106,26 @@ test("all migrations, existing RLS regression, and future owner protection", asy
     await t.test("clients cannot forge the protection flag or edit their own role", async () => {
       await assert.rejects(asAdmin(db, "update public.profiles set is_primary_owner=true where id=$1", [ids.other]), error => error.code === "42501");
       assert.equal((await asAdmin(db, "update public.profiles set role='owner' where id=$1 returning id", [ids.admin])).rows.length, 0);
+    });
+
+    await t.test("family profiles expose only safe details to approved members", async () => {
+      const pendingId = "10000000-0000-4000-8000-000000000004";
+      await db.query("insert into auth.users (id, raw_user_meta_data) values ($1, $2)", [pendingId, { birth_date: "2000-01-01", nickname: "Pending" }]);
+      await db.query("update public.profiles set is_approved=true where id=$1", [ids.other]);
+      const visible = await asUser(db, ids.other, "select id, display_name, bio from public.family_profiles order by id");
+      assert.equal(visible.rows.length, 3);
+      assert.deepEqual(visible.rows.map(row => row.id).sort(), [ids.admin, ids.owner, ids.other].sort());
+      assert.equal((await asUser(db, pendingId, "select id from public.family_profiles")).rows.length, 0);
+      assert.equal((await asUser(db, ids.other, "select id from public.profiles where id=$1", [ids.admin])).rows.length, 0);
+    });
+
+    await t.test("members can edit only their family display name and bio", async () => {
+      await asUser(db, ids.other, "select public.update_my_family_profile($1, $2)", ["Kuchcik", "Lubię gotować."]);
+      const own = (await db.query("select display_name, bio from public.family_profiles where id=$1", [ids.other])).rows[0];
+      assert.deepEqual(own, { display_name: "Kuchcik", bio: "Lubię gotować." });
+      assert.equal((await asUser(db, ids.other, "update public.family_profiles set display_name='Nie moje' where id=$1 returning id", [ids.admin])).rows.length, 0);
+      await assert.rejects(asUser(db, ids.other, "select public.update_my_family_profile($1, $2)", ["", ""]), error => error.code === "22023");
+      assert.equal((await asUser(db, ids.other, "update public.profiles set role='admin' where id=$1 returning id", [ids.other])).rows.length, 0);
     });
 
     await t.test("the database rejects a second primary owner", async () => {

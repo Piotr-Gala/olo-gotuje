@@ -17,16 +17,18 @@ export default async function Home() {
   if (profileError || !profile) return <LoadError language={language} />;
   if (!profile.is_approved) return <PendingAccess language={language} />;
 
-  const [sectionResult, postResult] = await Promise.all([
+  const [sectionResult, postResult, familyProfileResult] = await Promise.all([
     supabase.from("sections").select("slug, title, is_active, sort_order").order("sort_order"),
     supabase.from("posts").select("id, section_slug, author_id, author_name, title, slug, excerpt, content, metadata, status, published_at, created_at, post_images(id, storage_path, alt_text, sort_order)").order("created_at", { ascending: false }),
+    supabase.from("family_profiles").select("id, display_name"),
   ]);
-  if (sectionResult.error || postResult.error) return <LoadError language={language} />;
+  if (sectionResult.error || postResult.error || familyProfileResult.error) return <LoadError language={language} />;
 
   return <FamilyBlog
-    user={{ id: userId, name: profile.display_name || "Użytkownik", role: profile.role }}
+    user={{ id: userId, name: familyProfileResult.data?.find((familyProfile) => familyProfile.id === userId)?.display_name || profile.display_name || "Użytkownik", role: profile.role }}
     sections={sectionResult.data ?? []}
     posts={postResult.data ?? []}
+    familyProfiles={familyProfileResult.data ?? []}
   />;
 }
 
