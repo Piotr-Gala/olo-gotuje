@@ -2,7 +2,7 @@ alter table public.profiles
   add column first_name text not null default '',
   add column last_name text not null default '',
   add column nickname text not null default '',
-  add column birth_date date not null;
+  add column birth_date date;
 
 create or replace function public.handle_new_user()
 returns trigger

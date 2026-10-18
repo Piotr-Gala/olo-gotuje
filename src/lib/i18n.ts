@@ -46,6 +46,11 @@ const messages = {
     pendingAccounts: "Oczekujące:", updated: "Zmiany zapisane.", updateFailed: "Nie udało się zapisać zmian. Odśwież stronę i spróbuj ponownie.", accountsLoadFailed: "Nie udało się wczytać kont. Spróbuj ponownie później.", noAccounts: "Nie ma jeszcze kont rodzinnych do wyświetlenia.",
     nicknamePrefix: "Nick:", approved: "Zatwierdzone", awaiting: "Oczekuje", protectedOwner: "Chroniony właściciel", pauseAccess: "Wstrzymaj dostęp", approveAccount: "Zatwierdź konto", role: "Rola", member: "Członek rodziny", administrator: "Administrator", owner: "Właściciel", saveRole: "Zapisz rolę", backToBlog: "Wróć do bloga",
     languagePolish: "Polski", languageEnglish: "English",
+    savingPost: "Zapisywanie…", saveRetry: "Nie udało się potwierdzić całego zapisu. Formularz zachowano — spróbuj ponownie.",
+    deletePostRetry: "Nie udało się potwierdzić usunięcia wpisu. Zdjęcia nie zostały usunięte. Odśwież stronę i spróbuj ponownie.",
+    postDeletedPhotosPending: "Wpis usunięty, ale nie udało się usunąć jego zdjęć.", retryPhotoCleanup: "Ponów usuwanie zdjęć", photosCleanedUp: "Zdjęcia usunięte.",
+    blogLoadFailed: "Nie udało się wczytać bloga", blogLoadHelp: "Wystąpił problem z pobraniem danych. Spróbuj ponownie za chwilę.", tryAgain: "Spróbuj ponownie",
+    logoutFailed: "Nie udało się wylogować. Spróbuj ponownie.",
   },
   en: {
     changeLanguage: "Zmień język na polski",
@@ -92,6 +97,11 @@ const messages = {
     pendingAccounts: "Pending:", updated: "Changes saved.", updateFailed: "Could not save changes. Refresh the page and try again.", accountsLoadFailed: "Could not load accounts. Try again later.", noAccounts: "There are no family accounts to display yet.",
     nicknamePrefix: "Nickname:", approved: "Approved", awaiting: "Pending", protectedOwner: "Protected owner", pauseAccess: "Suspend access", approveAccount: "Approve account", role: "Role", member: "Family member", administrator: "Administrator", owner: "Owner", saveRole: "Save role", backToBlog: "Back to blog",
     languagePolish: "Polski", languageEnglish: "English",
+    savingPost: "Saving…", saveRetry: "The complete save could not be confirmed. Your form was kept — please try again.",
+    deletePostRetry: "The post deletion could not be confirmed. Photos were not removed. Refresh the page and try again.",
+    postDeletedPhotosPending: "The post was deleted, but its photos could not be removed.", retryPhotoCleanup: "Retry removing photos", photosCleanedUp: "Photos removed.",
+    blogLoadFailed: "Could not load the blog", blogLoadHelp: "There was a problem retrieving data. Please try again shortly.", tryAgain: "Try again",
+    logoutFailed: "Could not sign out. Please try again.",
   },
 } satisfies Record<Language, Record<string, string>>;
 
