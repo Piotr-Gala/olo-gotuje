@@ -8,6 +8,7 @@ type PostValues = {
   slug: string;
   excerpt: string;
   content: string;
+  metadata: Record<string, unknown>;
   status: "draft" | "published";
   published_at: string | null;
 };

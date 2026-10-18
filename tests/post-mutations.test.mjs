@@ -4,8 +4,20 @@ import { createClient } from "@supabase/supabase-js";
 import { loadTypeScript } from "./load-typescript.mjs";
 
 const { createPostSaveSession, savePostWithPhotos, deletePostWithPhotos } = await loadTypeScript("../src/lib/post-mutations.ts");
-const values = { section_slug: "gotowanie", title: "Test post", slug: "test-post", excerpt: "", content: "Content", status: "published", published_at: "2026-10-18T12:00:00Z" };
+const { getCoverPosition, assertImageSourceSize } = await loadTypeScript("../src/lib/image-processing.ts");
+const values = { section_slug: "gotowanie", title: "Test post", slug: "test-post", excerpt: "", content: "Content", metadata: { coverPosition: { x: 33, y: 62 } }, status: "published", published_at: "2026-10-18T12:00:00Z" };
 const photos = [new File(["photo"], "test.png", { type: "image/png", lastModified: 1 })];
+
+test("cover position is clamped and safely defaults for old posts", () => {
+  assert.deepEqual(getCoverPosition(null), { x: 50, y: 50 });
+  assert.deepEqual(getCoverPosition({ coverPosition: { x: 120, y: -5 } }), { x: 100, y: 0 });
+  assert.deepEqual(getCoverPosition({ coverPosition: { x: "left", y: Number.NaN } }), { x: 50, y: 50 });
+});
+
+test("photo source limit accepts 15 MiB and rejects larger originals", () => {
+  assert.doesNotThrow(() => assertImageSourceSize(new File([new Uint8Array(15 * 1024 * 1024)], "large.jpg")));
+  assert.throws(() => assertImageSourceSize(new File([new Uint8Array(15 * 1024 * 1024 + 1)], "too-large.jpg")), /source-too-large/);
+});
 
 // Exercise the real SDK against a deterministic HTTP boundary with fault injection.
 function fixture() {
@@ -63,6 +75,7 @@ test("upload failure leaves a draft and retry publishes the same post", async ()
   await savePostWithPhotos(client, session, values, "editor", photos);
   assert.equal(state.posts.size, 1);
   assert.equal(state.posts.get(session.id).status, "published");
+  assert.deepEqual(state.posts.get(session.id).metadata, values.metadata);
   assert.equal(state.files.size, 1);
   assert.equal(state.images.size, 1);
 });
