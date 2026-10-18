@@ -13,7 +13,7 @@ export async function updateAccountApproval(accountId: string, formData: FormDat
     .from("profiles")
     .update({ is_approved: isApproved })
     .eq("id", accountId)
-    .neq("role", "owner")
+    .eq("is_primary_owner", false)
     .select("id")
     .maybeSingle();
   redirect(data && !error ? "/admin?status=updated" : "/admin?status=error");
@@ -23,12 +23,12 @@ export async function updateAccountRole(accountId: string, formData: FormData) {
   const supabase = await requireAdmin();
   if (!accountIdPattern.test(accountId)) redirect("/admin?status=error");
   const role = formData.get("role");
-  if (role !== "member" && role !== "admin") redirect("/admin?status=error");
+  if (role !== "member" && role !== "admin" && role !== "owner") redirect("/admin?status=error");
   const { data, error } = await supabase
     .from("profiles")
     .update({ role })
     .eq("id", accountId)
-    .neq("role", "owner")
+    .eq("is_primary_owner", false)
     .select("id")
     .maybeSingle();
   redirect(data && !error ? "/admin?status=updated" : "/admin?status=error");

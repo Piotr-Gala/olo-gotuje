@@ -1,0 +1,111 @@
+export type Language = "pl" | "en";
+
+const messages = {
+  pl: {
+    changeLanguage: "Switch language to English",
+    home: "Strona główna", posts: "Wpisy", sections: "Działy", about: "O blogu", logout: "Wyloguj",
+    roleOwner: "Olo · twórca", roleAdmin: "Admin", accounts: "Konta",
+    familyBlog: "Prywatny blog rodzinny", heroTitle: "Olo gotuje i tworzy!",
+    heroDescription: "Rodzinne przepisy, konstrukcje i muzyczne pomysły — wszystko w jednym miejscu.",
+    viewPosts: "Zobacz wpisy", addPost: "＋ Dodaj wpis", olaIdeas: "✨ Pomysły Ola", familyOnly: "💚 Tylko dla rodziny",
+    sectionIntro: "Twoje miejsce, twoje tematy", activeSections: "Aktywne działy",
+    sectionHelp: "Włącz tylko te, w których Olo chce publikować. Wyłączony dział nie pojawia się rodzinie.",
+    whatsNew: "Co nowego u Ola?", familyFeed: "Rodzinny blog.", feedHelp: "Wybierz dział albo wyszukaj wpis. Zdjęcia otwierają się w pełnym rozmiarze.",
+    all: "Wszystkie", favorites: "♥ Ulubione", searchPost: "Szukaj wpisu…", searchPostLabel: "Szukaj wpisu",
+    favoriteToggle: "Dodaj lub usuń z ulubionych", noPostsAdmin: "Tu jeszcze nie ma wpisów. Dodaj pierwszy!", noPostsMember: "Nie ma tu jeszcze wpisów — zajrzyj później.",
+    readPost: "Czytaj wpis →", author: "Autor", draft: "Szkic", published: "Opublikowano", edit: "Edytuj", delete: "Usuń",
+    quoteEyebrow: "Tu jest miejsce na wszystko", quote: "„Najlepsze pomysły zaczynają się od: a co, jeśli…?”",
+    aboutEyebrow: "Nasze miejsce w sieci", aboutTitle: "Dobre pomysły. Rodzinna sprawa.",
+    aboutText: "to rodzinny blog, który rośnie razem z pomysłami Ola. Działy włączamy wtedy, kiedy Olo ma ochotę coś w nich pokazać.",
+    footer: "Prywatny blog rodzinny. 🍅", closeNotice: "Zamknij komunikat",
+    formNew: "Nowy wpis", formEdit: "Zmień wpis", formNewTitle: "Co Olo chce pokazać?", formEditTitle: "Edytuj wpis",
+    authorAssigned: "Wpis zostanie przypisany do Twojego konta.", section: "Dział", title: "Tytuł", excerpt: "Krótki opis", optional: "(opcjonalnie)",
+    titlePlaceholder: "Np. Mój kosmiczny makaron", excerptPlaceholder: "Jedno zdanie o wpisie", content: "Treść wpisu", contentPlaceholder: "Opowiedz, co się wydarzyło…",
+    photos: "Zdjęcia", photoLimit: "(opcjonalnie, do 8 MB każde)", keepPhotos: "Obecne zdjęcia zostaną zachowane. Nowe możesz dodać powyżej.",
+    postAction: "Co zrobić z wpisem", saveDraft: "Zapisz jako szkic", publishFamily: "Opublikuj rodzinie", cancel: "Anuluj", savePost: "Zapisz wpis", close: "Zamknij",
+    missingPostText: "Wpis potrzebuje tytułu i treści.", photoTooLarge: "Zdjęcie {name} przekracza limit 8 MB.",
+    saveFailed: "Nie udało się zapisać wpisu: {error}", uploadFailed: "Wpis zapisany, ale zdjęcia nie udało się dodać: {error}",
+    imageMetadataFailed: "Zdjęcie wgrane, ale jego opis nie zapisał się: {error}", refreshPost: "Wpis zapisany. Odśwież stronę, aby zobaczyć aktualną wersję.",
+    postPublished: "Wpis opublikowany!", postSaved: "Wpis zapisany jako szkic.", postDeleted: "Wpis usunięty.",
+    deleteConfirm: "Usunąć wpis „{title}” wraz ze zdjęciami?", deletePhotosFailed: "Nie udało się usunąć zdjęć: {error}", deletePostFailed: "Nie udało się usunąć wpisu: {error}",
+    sectionToggleFailed: "Nie udało się zmienić działu: {error}", sectionEnabled: "dział włączony", sectionHidden: "dział ukryty",
+    setupTitle: "Jeszcze chwila!", setupText: "Panel rodzinny jest gotowy, ale trzeba podłączyć projekt Supabase. Uzupełnij konfigurację serwera, a potem zastosuj migrację bazy.",
+    pendingTitle: "Dostęp czeka na zatwierdzenie", pendingText: "Logowanie działa. Administrator musi jeszcze zatwierdzić dostęp do rodzinnej strony. Możesz wrócić później — konto pozostanie zalogowane.", refreshStatus: "Odśwież status",
+    loginEyebrow: "Tylko dla rodziny", loginTitle: "Miło cię widzieć!", loginText: "Zaloguj się, żeby zobaczyć rodzinne wpisy.", email: "E-mail", password: "Hasło",
+    loginBusy: "Logowanie…", login: "Zaloguj się", noAccount: "Nie masz jeszcze konta?", register: "Zarejestruj się",
+    emailNotConfirmed: "Najpierw potwierdź adres e-mail, klikając link wysłany po rejestracji. Brak akceptacji administratora nie blokuje logowania.", loginFailed: "Nie udało się zalogować. Sprawdź e-mail i hasło.",
+    registerEyebrow: "Rodzinna strona", registerTitle: "Dołącz do nas", registerText: "Utwórz konto. Dostęp do wpisów włączy administrator.",
+    firstName: "Imię", lastName: "Nazwisko", nickname: "Nick", birthDate: "Data urodzenia", minPassword: "Minimum 8 znaków.",
+    createAccount: "Utwórz konto", createAccountBusy: "Tworzenie konta…", hasAccount: "Masz już konto?",
+    accountCreated: "Konto utworzone. Sprawdź pocztę (również spam) i potwierdź adres e-mail. Potem zaloguj się — administrator zatwierdzi dostęp do strony.",
+    requiredFields: "Uzupełnij wszystkie pola.", tooLong: "Jedno z pól przekracza dozwoloną długość.", passwordShort: "Hasło musi mieć co najmniej 8 znaków.", invalidBirthDate: "Podaj prawidłową datę urodzenia.", futureBirthDate: "Data urodzenia nie może być w przyszłości.",
+    missingSupabase: "Brakuje konfiguracji Supabase na serwerze.", connectionFailed: "Nie udało się połączyć z Supabase. Sprawdź połączenie i spróbuj ponownie.",
+    accountExists: "Konto z tym adresem e-mail już istnieje. Zaloguj się.", rateLimit: "Wysłano za dużo próśb naraz. Odczekaj chwilę i spróbuj ponownie.", signupsDisabled: "Rejestracja jest wyłączona w ustawieniach Supabase.",
+    weakPassword: "Hasło nie spełnia wymagań Supabase. Ustaw inne hasło i spróbuj ponownie.", invalidEmail: "Sprawdź adres e-mail i spróbuj ponownie.", registerFailed: "Nie udało się utworzyć konta. Spróbuj ponownie za chwilę lub skontaktuj się z administratorem.",
+    adminSettings: "Ustawienia rodziny", familyAccounts: "Konta rodzinne", adminHelp: "Zatwierdzaj dostęp i ustawiaj rolę. Właściciel może publikować i zarządzać wpisami. Pierwsze konto właściciela jest chronione.",
+    pendingAccounts: "Oczekujące:", updated: "Zmiany zapisane.", updateFailed: "Nie udało się zapisać zmian. Odśwież stronę i spróbuj ponownie.", accountsLoadFailed: "Nie udało się wczytać kont. Spróbuj ponownie później.", noAccounts: "Nie ma jeszcze kont rodzinnych do wyświetlenia.",
+    nicknamePrefix: "Nick:", approved: "Zatwierdzone", awaiting: "Oczekuje", protectedOwner: "Chroniony właściciel", pauseAccess: "Wstrzymaj dostęp", approveAccount: "Zatwierdź konto", role: "Rola", member: "Członek rodziny", administrator: "Administrator", owner: "Właściciel", saveRole: "Zapisz rolę", backToBlog: "Wróć do bloga",
+    languagePolish: "Polski", languageEnglish: "English",
+  },
+  en: {
+    changeLanguage: "Zmień język na polski",
+    home: "Home", posts: "Posts", sections: "Sections", about: "About", logout: "Log out",
+    roleOwner: "Olo · creator", roleAdmin: "Admin", accounts: "Accounts",
+    familyBlog: "Private family blog", heroTitle: "Olo cooks and creates!",
+    heroDescription: "Family recipes, builds, and music ideas — all in one place.",
+    viewPosts: "View posts", addPost: "＋ Add a post", olaIdeas: "✨ Ola’s ideas", familyOnly: "💚 Family only",
+    sectionIntro: "Your space, your topics", activeSections: "Active sections",
+    sectionHelp: "Enable only the sections Olo wants to post in. Disabled sections are hidden from the family.",
+    whatsNew: "What’s new from Olo?", familyFeed: "Family blog.", feedHelp: "Choose a section or search for a post. Photos open at full size.",
+    all: "All", favorites: "♥ Favorites", searchPost: "Search posts…", searchPostLabel: "Search posts",
+    favoriteToggle: "Add to or remove from favorites", noPostsAdmin: "There are no posts yet. Add the first one!", noPostsMember: "There are no posts here yet — check back later.",
+    readPost: "Read post →", author: "Author", draft: "Draft", published: "Published", edit: "Edit", delete: "Delete",
+    quoteEyebrow: "A place for everything", quote: "“The best ideas start with: what if…?”",
+    aboutEyebrow: "Our place online", aboutTitle: "Good ideas. A family thing.",
+    aboutText: " is a family blog that grows with Ola’s ideas. We enable sections whenever Olo feels like sharing something there.",
+    footer: "Private family blog. 🍅", closeNotice: "Dismiss message",
+    formNew: "New post", formEdit: "Edit post", formNewTitle: "What would Olo like to share?", formEditTitle: "Edit post",
+    authorAssigned: "This post will be assigned to your account.", section: "Section", title: "Title", excerpt: "Short description", optional: "(optional)",
+    titlePlaceholder: "E.g. My cosmic pasta", excerptPlaceholder: "One sentence about the post", content: "Post content", contentPlaceholder: "Tell us what happened…",
+    photos: "Photos", photoLimit: "(optional, up to 8 MB each)", keepPhotos: "Current photos will be kept. You can add new ones above.",
+    postAction: "What to do with this post", saveDraft: "Save as draft", publishFamily: "Publish to family", cancel: "Cancel", savePost: "Save post", close: "Close",
+    missingPostText: "A post needs a title and content.", photoTooLarge: "Photo {name} exceeds the 8 MB limit.",
+    saveFailed: "Could not save the post: {error}", uploadFailed: "Post saved, but the photo could not be added: {error}",
+    imageMetadataFailed: "Photo uploaded, but its details could not be saved: {error}", refreshPost: "Post saved. Refresh the page to see the latest version.",
+    postPublished: "Post published!", postSaved: "Post saved as a draft.", postDeleted: "Post deleted.",
+    deleteConfirm: "Delete “{title}” and its photos?", deletePhotosFailed: "Could not delete the photos: {error}", deletePostFailed: "Could not delete the post: {error}",
+    sectionToggleFailed: "Could not update the section: {error}", sectionEnabled: "section enabled", sectionHidden: "section hidden",
+    setupTitle: "Almost there!", setupText: "The family site is ready, but it still needs a Supabase project. Add the server configuration, then apply the database migration.",
+    pendingTitle: "Access approval pending", pendingText: "Sign-in worked. An administrator still needs to approve access to the family site. You can come back later — your account will stay signed in.", refreshStatus: "Refresh status",
+    loginEyebrow: "Family only", loginTitle: "Welcome back!", loginText: "Sign in to see family posts.", email: "Email", password: "Password",
+    loginBusy: "Signing in…", login: "Sign in", noAccount: "Don’t have an account yet?", register: "Sign up",
+    emailNotConfirmed: "Please confirm your email address using the link sent after registration. Administrator approval is not required to sign in.", loginFailed: "Could not sign in. Check your email and password.",
+    registerEyebrow: "Family site", registerTitle: "Join us", registerText: "Create an account. An administrator will enable access to posts.",
+    firstName: "First name", lastName: "Last name", nickname: "Nickname", birthDate: "Date of birth", minPassword: "At least 8 characters.",
+    createAccount: "Create account", createAccountBusy: "Creating account…", hasAccount: "Already have an account?",
+    accountCreated: "Account created. Check your inbox (including spam) and confirm your email address. Then sign in — an administrator will approve access to the site.",
+    requiredFields: "Complete all fields.", tooLong: "One of the fields exceeds the allowed length.", passwordShort: "Password must be at least 8 characters.", invalidBirthDate: "Enter a valid date of birth.", futureBirthDate: "Date of birth cannot be in the future.",
+    missingSupabase: "Supabase server configuration is missing.", connectionFailed: "Could not connect to Supabase. Check your connection and try again.",
+    accountExists: "An account with this email address already exists. Sign in instead.", rateLimit: "Too many requests. Wait a moment and try again.", signupsDisabled: "Registration is disabled in Supabase settings.",
+    weakPassword: "The password does not meet Supabase requirements. Choose another password and try again.", invalidEmail: "Check the email address and try again.", registerFailed: "Could not create the account. Try again shortly or contact an administrator.",
+    adminSettings: "Family settings", familyAccounts: "Family accounts", adminHelp: "Approve access and manage roles. Owners can publish and manage posts. The original owner account is protected.",
+    pendingAccounts: "Pending:", updated: "Changes saved.", updateFailed: "Could not save changes. Refresh the page and try again.", accountsLoadFailed: "Could not load accounts. Try again later.", noAccounts: "There are no family accounts to display yet.",
+    nicknamePrefix: "Nickname:", approved: "Approved", awaiting: "Pending", protectedOwner: "Protected owner", pauseAccess: "Suspend access", approveAccount: "Approve account", role: "Role", member: "Family member", administrator: "Administrator", owner: "Owner", saveRole: "Save role", backToBlog: "Back to blog",
+    languagePolish: "Polski", languageEnglish: "English",
+  },
+} satisfies Record<Language, Record<string, string>>;
+
+export type MessageKey = keyof typeof messages.pl;
+
+export function translate(language: Language, key: MessageKey, values?: Record<string, string | number>): string {
+  let message = messages[language][key] ?? messages.pl[key];
+  for (const [name, value] of Object.entries(values ?? {})) message = message.replaceAll(`{${name}}`, String(value));
+  return message;
+}
+
+export function sectionName(language: Language, slug: string, fallback: string): string {
+  if (slug === "gotowanie") return language === "en" ? "🍝 Cooking" : "🍝 Gotowanie";
+  if (slug === "lego") return "🧱 LEGO";
+  if (slug === "muzyka") return language === "en" ? "🎵 Music" : "🎵 Muzyka";
+  return fallback;
+}

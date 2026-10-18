@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { LanguageProvider } from "@/components/LanguageProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,10 +13,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const language = (await cookies()).get("olo-language")?.value === "pl" ? "pl" : "en";
   return (
-    <html lang="pl">
-      <body>{children}</body>
+    <html lang={language}>
+      <body><LanguageProvider initialLanguage={language}>{children}</LanguageProvider></body>
     </html>
   );
 }

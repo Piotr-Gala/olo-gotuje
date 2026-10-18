@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { translate, type Language, type MessageKey } from "@/lib/i18n";
 
 export type RegisterState = {
   error?: string;
@@ -10,6 +11,8 @@ export type RegisterState = {
 };
 
 export async function register(_previousState: RegisterState, formData: FormData): Promise<RegisterState> {
+  const language: Language = formData.get("language") === "pl" ? "pl" : "en";
+  const message = (key: MessageKey) => translate(language, key);
   const firstName = readText(formData, "first_name").trim();
   const lastName = readText(formData, "last_name").trim();
   const nickname = readText(formData, "nickname").trim();
@@ -18,23 +21,23 @@ export async function register(_previousState: RegisterState, formData: FormData
   const password = readText(formData, "password");
 
   if (!firstName || !lastName || !nickname || !birthDate || !email || !password) {
-    return { error: "Uzupełnij wszystkie pola." };
+    return { error: message("requiredFields") };
   }
   if (firstName.length > 80 || lastName.length > 100 || nickname.length > 40 || email.length > 254) {
-    return { error: "Jedno z pól przekracza dozwoloną długość." };
+    return { error: message("tooLong") };
   }
   if (password.length < 8) {
-    return { error: "Hasło musi mieć co najmniej 8 znaków." };
+    return { error: message("passwordShort") };
   }
   if (!isCalendarDate(birthDate)) {
-    return { error: "Podaj prawidłową datę urodzenia." };
+    return { error: message("invalidBirthDate") };
   }
   if (birthDate > new Date().toISOString().slice(0, 10)) {
-    return { error: "Data urodzenia nie może być w przyszłości." };
+    return { error: message("futureBirthDate") };
   }
 
   const supabase = await createClient();
-  if (!supabase) return { error: "Brakuje konfiguracji Supabase na serwerze." };
+  if (!supabase) return { error: message("missingSupabase") };
 
   const requestOrigin = (await headers()).get("origin");
   let emailRedirectTo: string | undefined;
@@ -66,33 +69,33 @@ export async function register(_previousState: RegisterState, formData: FormData
     signupData = result.data;
     signupError = result.error;
   } catch {
-    return { error: "Nie udało się połączyć z Supabase. Sprawdź połączenie i spróbuj ponownie." };
+    return { error: message("connectionFailed") };
   }
 
   if (signupError) {
     const details = `${signupError.code ?? ""} ${signupError.message}`.toLowerCase();
     if (details.includes("already registered") || details.includes("user_already_exists")) {
-      return { error: "Konto z tym adresem e-mail już istnieje. Zaloguj się." };
+      return { error: message("accountExists") };
     }
     if (details.includes("rate limit")) {
-      return { error: "Wysłano za dużo próśb naraz. Odczekaj chwilę i spróbuj ponownie." };
+      return { error: message("rateLimit") };
     }
     if (details.includes("signups not allowed") || details.includes("signup is disabled")) {
-      return { error: "Rejestracja jest wyłączona w ustawieniach Supabase." };
+      return { error: message("signupsDisabled") };
     }
     if (details.includes("password") || details.includes("weak_password")) {
-      return { error: "Hasło nie spełnia wymagań Supabase. Ustaw inne hasło i spróbuj ponownie." };
+      return { error: message("weakPassword") };
     }
     if (details.includes("email") || details.includes("invalid_credentials")) {
-      return { error: "Sprawdź adres e-mail i spróbuj ponownie." };
+      return { error: message("invalidEmail") };
     }
-    return { error: "Nie udało się utworzyć konta. Spróbuj ponownie za chwilę lub skontaktuj się z administratorem." };
+    return { error: message("registerFailed") };
   }
 
   if (signupData.session) redirect("/");
 
   return {
-    message: "Konto utworzone. Sprawdź pocztę (również spam) i potwierdź adres e-mail. Potem zaloguj się — administrator zatwierdzi dostęp do strony.",
+    message: message("accountCreated"),
   };
 }
 
