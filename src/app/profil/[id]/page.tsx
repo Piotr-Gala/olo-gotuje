@@ -5,6 +5,7 @@ import { getLanguage } from "@/lib/language-server";
 import { translate } from "@/lib/i18n";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { getCoverPosition } from "@/lib/image-processing";
+import { PostVideo } from "@/components/PostVideo";
 import { updateMyFamilyProfile } from "../actions";
 
 type ProfilePageProps = {
@@ -84,7 +85,7 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
           <div className="card-body"><p className="meta">{new Date(post.created_at).toLocaleDateString(language === "en" ? "en-US" : "pl-PL")}</p>
             <h3>{post.title}</h3>{post.excerpt && <p>{post.excerpt}</p>}
             <div className="profile-post-content">{post.content.split("\n").filter(Boolean).map((line: string, index: number) => <p key={index}>{line}</p>)}
-              {post.post_images.slice(1).map((photo) => photoUrls[photo.storage_path] && <img className="inline-post-image" key={photo.id} src={photoUrls[photo.storage_path]} alt={photo.alt_text || post.title}/>)}
+              <PostVideo postId={post.id}/>{post.post_images.slice(1).map((photo) => photoUrls[photo.storage_path] && <img className="inline-post-image" key={photo.id} src={photoUrls[photo.storage_path]} alt={photo.alt_text || post.title}/>)}
             </div>
           </div>
         </article>;

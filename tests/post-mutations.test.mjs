@@ -89,6 +89,19 @@ test("a duplicate submit cannot run a second save", async () => {
   assert.equal(state.requests.filter(request => request === "PATCH /rest/v1/posts").length, 1);
 });
 
+test("video verification failure leaves a draft and retry reuses uploaded photos", async () => {
+  const { state, client, session } = fixture();
+  await assert.rejects(savePostWithPhotos(client, session, values, "editor", photos, async () => { throw new Error("Video failed"); }));
+  assert.equal(state.posts.get(session.id).status, "draft");
+  const photoRequests = state.requests.filter(request => request.startsWith("POST /storage/")).length;
+  await savePostWithPhotos(client, session, values, "editor", photos, async id => {
+    assert.equal(id, session.id);
+    assert.equal(state.posts.get(id).status, "draft");
+  });
+  assert.equal(state.posts.get(session.id).status, "published");
+  assert.equal(state.requests.filter(request => request.startsWith("POST /storage/")).length, photoRequests);
+});
+
 for (const operation of ["POST /rest/v1/posts", "POST /storage/v1/object/family-post-images/", "POST /rest/v1/post_images", "PATCH /rest/v1/posts"]) {
   test(`lost response after ${operation} can be retried without duplicates`, async () => {
     const { state, client, session } = fixture();

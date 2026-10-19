@@ -128,6 +128,36 @@ test("all migrations, existing RLS regression, and future owner protection", asy
       assert.equal((await asUser(db, ids.other, "update public.profiles set role='admin' where id=$1 returning id", [ids.other])).rows.length, 0);
     });
 
+    await t.test("video RLS follows post visibility and cascade retains cleanup identities", async () => {
+      const postId = "40000000-0000-4000-8000-000000000001";
+      const videoId = "40000000-0000-4000-8000-000000000002";
+      await asAdmin(db, "insert into public.posts (id, section_slug, author_id, title, slug) values ($1, 'gotowanie', $2, 'Video', 'video-rls')", [postId, ids.admin]);
+      await asAdmin(db, "insert into public.post_videos(id, post_id, file_name, size_bytes) values ($1, $2, 'test.mp4', 40)", [videoId, postId]);
+      assert.equal((await asUser(db, ids.other, "select id from public.post_videos")).rows.length, 0);
+      await asAdmin(db, "update public.post_videos set state='ready' where id=$1", [videoId]);
+      assert.equal((await asUser(db, ids.other, "select id from public.post_videos")).rows.length, 0);
+      await asAdmin(db, "update public.posts set status='published' where id=$1", [postId]);
+      await asAdmin(db, "update public.sections set is_active=true where slug='gotowanie'");
+      assert.equal((await asUser(db, ids.other, "select id from public.post_videos")).rows.length, 1);
+      assert.equal((await asUser(db, '10000000-0000-4000-8000-000000000004', "select id from public.post_videos")).rows.length, 0);
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_videos(id,post_id,file_name,size_bytes) values(gen_random_uuid(), $1, 'bad.mp4', 40)", [postId]), error => error.code === "42501");
+      assert.equal((await asUser(db, ids.other, "update public.post_videos set state='deleting' returning id")).rows.length, 0);
+      assert.equal((await asUser(db, ids.other, "delete from public.post_videos returning id")).rows.length, 0);
+      await assert.rejects(db.transaction(async tx => { await tx.exec("set local role anon"); await tx.exec("select * from public.post_videos"); }), error => error.code === "42501");
+      await asAdmin(db, "update public.sections set is_active=false where slug='gotowanie'");
+      assert.equal((await asUser(db, ids.other, "select id from public.post_videos")).rows.length, 0);
+      assert.equal((await asUser(db, ids.owner, "select id from public.post_videos")).rows.length, 1);
+      await assert.rejects(asAdmin(db, "update public.post_videos set size_bytes=1000000001 where id=$1", [videoId]), error => error.code === "23514");
+      assert.equal((await asAdmin(db, "delete from public.post_videos where id=$1 returning id", [videoId])).rows.length, 0);
+      await asAdmin(db, "delete from public.posts where id=$1", [postId]);
+      const orphan = (await asAdmin(db, "select * from public.post_videos where id=$1", [videoId])).rows[0];
+      assert.equal(orphan.post_id, null); assert.equal(orphan.state, "deleting");
+      assert.equal(orphan.object_key, `videos/${videoId}.mp4`);
+      assert.ok(new Date(orphan.cleanup_after).getTime() > Date.now());
+      assert.equal((await asUser(db, ids.other, "select id from public.post_videos")).rows.length, 0);
+      await asAdmin(db, "update public.sections set is_active=true where slug='gotowanie'");
+    });
+
     await t.test("the database rejects a second primary owner", async () => {
       await assert.rejects(db.query("update public.profiles set is_primary_owner=true where id=$1", [ids.other]), error => error.code === "23505");
     });

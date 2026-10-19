@@ -8,6 +8,8 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { sectionName, translate, type MessageKey } from "@/lib/i18n";
 import { createPostSaveSession, deletePostWithPhotos, savePostWithPhotos, type PostSaveSession } from "@/lib/post-mutations";
 import { getCoverPosition, preparePostImage } from "@/lib/image-processing";
+import { PostVideo, VideoAttachment, videoErrorText } from "@/components/PostVideo";
+import { uploadPostVideo, videoRequest, type VideoUploadSession } from "@/lib/video-upload";
 
 type Section = { slug: string; title: string; is_active: boolean; sort_order: number };
 type ImageRow = { id: string; storage_path: string; alt_text: string; sort_order: number };
@@ -33,6 +35,12 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
   const [photoPreparing, setPhotoPreparing] = useState(false);
   const [coverPosition, setCoverPosition] = useState({ x: 50, y: 50 });
   const [saving, setSaving] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreparing, setVideoPreparing] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
+  const [pendingVideoCleanup, setPendingVideoCleanup] = useState(false);
+  const videoSession = useRef<VideoUploadSession | null>(null);
+  const videoAbort = useRef<AbortController | null>(null);
   const saveSession = useRef<PostSaveSession | null>(null);
   const readDialogRef = useRef<HTMLDialogElement | null>(null);
   const readTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -84,6 +92,23 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
     void signImages(); return () => { cancelled = true; };
   }, [posts]);
   useEffect(() => () => { if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl); }, [photoPreviewUrl]);
+  useEffect(() => {
+    if (!isEditor) return;
+    void retryVideoCleanup();
+  }, [isEditor]);
+
+  async function retryVideoCleanup() {
+    try { const result = await videoRequest({ action: "cleanup" }); setPendingVideoCleanup(result.cleanupPending); }
+    catch { setPendingVideoCleanup(true); }
+  }
+  async function cancelVideo() {
+    if (saving) { videoAbort.current?.abort(); return; }
+    if (videoSession.current) {
+      try { const result = await videoRequest({ action: "remove", id: videoSession.current.id }); setPendingVideoCleanup(result.cleanupPending); }
+      catch { setNotice(videoErrorText(null, language === "en")); return; }
+    }
+    videoSession.current = null; setVideoFile(null); setVideoProgress(null);
+  }
 
   const visiblePosts = useMemo(() => posts.filter((post) => {
     const active = isEditor || activeSections.some((section) => section.slug === post.section_slug);
@@ -102,7 +127,7 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
 
   async function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saveSession.current?.busy) return;
+    if (saving || saveSession.current?.busy) return;
     setNotice("");
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") ?? "").trim();
@@ -112,22 +137,36 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
     const status = String(form.get("status")) as "draft" | "published";
     const files = selectedPhotos;
     if (!title || !content) { setNotice(t("missingPostText")); return; }
-    if (photoPreparing) return;
+    if (photoPreparing || videoPreparing) return;
     saveSession.current ??= createPostSaveSession(editing ?? undefined);
     setSaving(true);
+    const controller = new AbortController();
+    videoAbort.current = controller;
     try {
       const data = await savePostWithPhotos(createClient(), saveSession.current, {
         section_slug: sectionSlug, title, slug: editing?.slug ?? makeSlug(title), excerpt, content, status,
         metadata: { ...(editing?.metadata ?? {}), coverPosition },
         published_at: status === "published" ? editing?.published_at ?? new Date().toISOString() : null,
-      }, user.id, files);
+      }, user.id, files, async postId => {
+        if (!videoFile) return;
+        videoSession.current ??= { id: crypto.randomUUID(), file: videoFile };
+        setVideoProgress(0);
+        await uploadPostVideo(postId, videoSession.current, controller.signal, setVideoProgress);
+      });
       if (!data) return;
       setPosts((current) => [data as Post, ...current.filter((post) => post.id !== data.id)]);
       saveSession.current = null;
+      videoSession.current = null; setVideoFile(null); setVideoProgress(null);
       setEditing(null); setShowForm(false); setNotice(status === "published" ? t("postPublished") : t("postSaved"));
-    } catch {
-      setNotice(t("saveRetry"));
+    } catch (error) {
+      if (controller.signal.aborted && videoSession.current) {
+        try { const result = await videoRequest({ action: "remove", id: videoSession.current.id }); setPendingVideoCleanup(result.cleanupPending); }
+        catch { setPendingVideoCleanup(true); }
+        videoSession.current = null; setVideoFile(null); setVideoProgress(null);
+        setNotice(language === "en" ? "Upload cancelled. A new post stays a draft." : "Wysyłanie anulowane. Nowy wpis nie został opublikowany.");
+      } else setNotice(error instanceof Error && error.message.startsWith("video-") ? videoErrorText(error, language === "en") : t("saveRetry"));
     } finally {
+      videoAbort.current = null;
       setSaving(false);
     }
   }
@@ -139,6 +178,7 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
     try {
       const { cleanupError } = await deletePostWithPhotos(createClient(), post);
       setPosts((current) => current.filter((item) => item.id !== post.id));
+      await retryVideoCleanup();
       if (cleanupError) {
         setPendingPhotoCleanup((current) => [...new Set([...current, ...post.post_images.map((image) => image.storage_path)])]);
         setNotice(t("postDeletedPhotosPending"));
@@ -165,8 +205,9 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
   }
 
   function openPostForm(post: Post | null) {
-    if (saveSession.current?.busy) return;
+    if (saving || saveSession.current?.busy) return;
     saveSession.current = null;
+    videoSession.current = null; setVideoFile(null); setVideoProgress(null);
     setEditing(post);
     setSelectedPhotos([]);
     setPhotoPreviewUrl(null);
@@ -213,10 +254,11 @@ export function FamilyBlog({ user, sections: initialSections, posts: initialPost
       <aside className="quote"><div><small>{t("quoteEyebrow")}</small><h2>{t("quote")}</h2></div><div className="chef">💡</div></aside>
       <section className="about" id="o-olo"><div><div className="eyebrow">{t("aboutEyebrow")}</div><h2>{t("aboutTitle")}</h2></div><p><strong>Olo Gotuje</strong> {t("aboutText")}</p></section>
     </main><footer><span><strong>Olo Gotuje.</strong> {t("footer")}</span><span>{activeSections.map((section) => sectionName(language, section.slug, section.title)).join(" · ")}</span></footer>
+    {pendingVideoCleanup && <div className="cleanup-warning" role="status"><span>{language === "en" ? "Video cleanup needs a retry." : "Sprzątanie plików filmowych wymaga ponowienia."}</span><button className="text-button" onClick={() => void retryVideoCleanup()}>{language === "en" ? "Retry video cleanup" : "Ponów sprzątanie filmów"}</button></div>}
     {pendingPhotoCleanup.length > 0 && <div className="cleanup-warning" role="status"><span>{t("postDeletedPhotosPending")}</span><button className="text-button" onClick={() => void retryPhotoCleanup()}>{t("retryPhotoCleanup")}</button></div>}
     {notice && <div className="notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label={t("closeNotice")}>×</button></div>}
-    {readingPost && <dialog className="post-read-dialog" ref={readDialogRef} aria-labelledby="post-read-title" onClose={() => setReadingPost(null)} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}><article className="card post-read-card"><div className="card-top post-cover"><span className="stamp">{sectionName(language, readingPost.section_slug, readingPost.section_slug)}</span>{readingPost.post_images[0] && imageUrls[readingPost.post_images[0].storage_path] ? <img src={imageUrls[readingPost.post_images[0].storage_path]} alt={readingPost.post_images[0].alt_text || readingPost.title} style={{ objectPosition: `${getCoverPosition(readingPost.metadata).x}% ${getCoverPosition(readingPost.metadata).y}%` }}/> : <span className="food">{readingPost.section_slug === "lego" ? "🧱" : readingPost.section_slug === "muzyka" ? "🎵" : "🍝"}</span>}<button className="heart post-read-close" type="button" autoFocus onClick={() => readDialogRef.current?.close()} aria-label={t("close")}>×</button></div><div className="card-body"><div className="meta"><span>{t("author")}: <Link className="profile-author-link" href={`/profil/${readingPost.author_id}`}>{familyProfileNames.get(readingPost.author_id) ?? readingPost.author_name}</Link></span><span>{new Date(readingPost.created_at).toLocaleDateString(language === "en" ? "en-US" : "pl-PL")}</span><span>· {readingPost.status === "draft" ? t("draft") : t("published")}</span></div><h3 id="post-read-title">{readingPost.title}</h3>{readingPost.excerpt && <p>{readingPost.excerpt}</p>}<details className="post-details" open><summary>{t("readPost")}</summary><div>{readingPost.content.split("\n").filter(Boolean).map((line, index) => <p key={index}>{line}</p>)}{readingPost.post_images.slice(1).map((image) => imageUrls[image.storage_path] && <img className="inline-post-image" key={image.id} src={imageUrls[image.storage_path]} alt={image.alt_text || readingPost.title}/>)}</div></details></div></article></dialog>}
-    {showForm && <div className="form-backdrop" role="presentation" onMouseDown={(event) => { if (!saving && event.target === event.currentTarget) setShowForm(false); }}><form className="post-form" onSubmit={(event) => void savePost(event)} aria-busy={saving || photoPreparing}><fieldset className="post-form-fields" disabled={saving}><div className="modal-head"><div><div className="eyebrow">{editing ? t("formEdit") : t("formNew")}</div><h2>{editing ? t("formEditTitle") : t("formNewTitle")}</h2></div><button className="close" type="button" onClick={() => { if (!saving) setShowForm(false); }} aria-label={t("close")}>×</button></div><div className="post-author-preview"><span>{t("author")}</span><strong>{editing?.author_name ?? user.name}</strong>{!editing && <small>{t("authorAssigned")}</small>}</div><label>{t("section")}<select name="section_slug" defaultValue={editing?.section_slug ?? activeSections[0]?.slug ?? sections[0]?.slug} required>{sections.map((section) => <option key={section.slug} value={section.slug}>{sectionName(language, section.slug, section.title)}{section.is_active ? "" : language === "en" ? " (disabled)" : " (wyłączony)"}</option>)}</select></label><label>{t("title")}<input name="title" required maxLength={120} defaultValue={editing?.title ?? ""} placeholder={t("titlePlaceholder")}/></label><label>{t("excerpt")} <span>{t("optional")}</span><input name="excerpt" maxLength={240} defaultValue={editing?.excerpt ?? ""} placeholder={t("excerptPlaceholder")}/></label><label>{t("content")}<textarea name="content" rows={8} required defaultValue={editing?.content ?? ""} placeholder={t("contentPlaceholder")}/></label><label>{t("photos")} <span>{t("photoLimit")}</span><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => void preparePhotos(event.currentTarget.files)}/></label>{photoPreparing && <p className="form-hint" role="status">{t("photoPreparing")}</p>}{editing?.post_images.length ? <p className="form-hint">{t("keepPhotos")}</p> : null}{coverPreviewUrl && <div className="cover-crop-control"><strong>{t("cropPhoto")}</strong><div className="cover-crop-preview"><img src={coverPreviewUrl} alt="" style={coverStyle}/></div><label>{t("cropHorizontal")}<input type="range" min="0" max="100" value={coverPosition.x} onChange={(event) => setCoverPosition((position) => ({ ...position, x: Number(event.target.value) }))}/></label><label>{t("cropVertical")}<input type="range" min="0" max="100" value={coverPosition.y} onChange={(event) => setCoverPosition((position) => ({ ...position, y: Number(event.target.value) }))}/></label></div>}<label>{t("postAction")}<select name="status" defaultValue={editing?.status ?? "draft"}><option value="draft">{t("saveDraft")}</option><option value="published">{t("publishFamily")}</option></select></label><div className="form-buttons"><button type="button" className="button ghost" onClick={() => { if (!saving) setShowForm(false); }}>{t("cancel")}</button><button className="button orange" disabled={saving || photoPreparing}>{photoPreparing ? t("photoPreparing") : saving ? t("savingPost") : t("savePost")}</button></div></fieldset></form></div>}
+    {readingPost && <dialog className="post-read-dialog" ref={readDialogRef} aria-labelledby="post-read-title" onClose={() => setReadingPost(null)} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}><article className="card post-read-card"><div className="card-top post-cover"><span className="stamp">{sectionName(language, readingPost.section_slug, readingPost.section_slug)}</span>{readingPost.post_images[0] && imageUrls[readingPost.post_images[0].storage_path] ? <img src={imageUrls[readingPost.post_images[0].storage_path]} alt={readingPost.post_images[0].alt_text || readingPost.title} style={{ objectPosition: `${getCoverPosition(readingPost.metadata).x}% ${getCoverPosition(readingPost.metadata).y}%` }}/> : <span className="food">{readingPost.section_slug === "lego" ? "🧱" : readingPost.section_slug === "muzyka" ? "🎵" : "🍝"}</span>}<button className="heart post-read-close" type="button" autoFocus onClick={() => readDialogRef.current?.close()} aria-label={t("close")}>×</button></div><div className="card-body"><div className="meta"><span>{t("author")}: <Link className="profile-author-link" href={`/profil/${readingPost.author_id}`}>{familyProfileNames.get(readingPost.author_id) ?? readingPost.author_name}</Link></span><span>{new Date(readingPost.created_at).toLocaleDateString(language === "en" ? "en-US" : "pl-PL")}</span><span>· {readingPost.status === "draft" ? t("draft") : t("published")}</span></div><h3 id="post-read-title">{readingPost.title}</h3>{readingPost.excerpt && <p>{readingPost.excerpt}</p>}<details className="post-details" open><summary>{t("readPost")}</summary><div>{readingPost.content.split("\n").filter(Boolean).map((line, index) => <p key={index}>{line}</p>)}<PostVideo postId={readingPost.id}/>{readingPost.post_images.slice(1).map((image) => imageUrls[image.storage_path] && <img className="inline-post-image" key={image.id} src={imageUrls[image.storage_path]} alt={image.alt_text || readingPost.title}/>)}</div></details></div></article></dialog>}
+    {showForm && <div className="form-backdrop" role="presentation" onMouseDown={(event) => { if (!saving && event.target === event.currentTarget) setShowForm(false); }}><form className="post-form" onSubmit={(event) => void savePost(event)} aria-busy={saving || photoPreparing}><fieldset className="post-form-fields" disabled={saving}><div className="modal-head"><div><div className="eyebrow">{editing ? t("formEdit") : t("formNew")}</div><h2>{editing ? t("formEditTitle") : t("formNewTitle")}</h2></div><button className="close" type="button" onClick={() => { if (!saving) setShowForm(false); }} aria-label={t("close")}>×</button></div><div className="post-author-preview"><span>{t("author")}</span><strong>{editing?.author_name ?? user.name}</strong>{!editing && <small>{t("authorAssigned")}</small>}</div><label>{t("section")}<select name="section_slug" defaultValue={editing?.section_slug ?? activeSections[0]?.slug ?? sections[0]?.slug} required>{sections.map((section) => <option key={section.slug} value={section.slug}>{sectionName(language, section.slug, section.title)}{section.is_active ? "" : language === "en" ? " (disabled)" : " (wyłączony)"}</option>)}</select></label><label>{t("title")}<input name="title" required maxLength={120} defaultValue={editing?.title ?? ""} placeholder={t("titlePlaceholder")}/></label><label>{t("excerpt")} <span>{t("optional")}</span><input name="excerpt" maxLength={240} defaultValue={editing?.excerpt ?? ""} placeholder={t("excerptPlaceholder")}/></label><label>{t("content")}<textarea name="content" rows={8} required defaultValue={editing?.content ?? ""} placeholder={t("contentPlaceholder")}/></label><label>{t("photos")} <span>{t("photoLimit")}</span><input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => void preparePhotos(event.currentTarget.files)}/></label>{photoPreparing && <p className="form-hint" role="status">{t("photoPreparing")}</p>}{editing?.post_images.length ? <p className="form-hint">{t("keepPhotos")}</p> : null}{coverPreviewUrl && <div className="cover-crop-control"><strong>{t("cropPhoto")}</strong><div className="cover-crop-preview"><img src={coverPreviewUrl} alt="" style={coverStyle}/></div><label>{t("cropHorizontal")}<input type="range" min="0" max="100" value={coverPosition.x} onChange={(event) => setCoverPosition((position) => ({ ...position, x: Number(event.target.value) }))}/></label><label>{t("cropVertical")}<input type="range" min="0" max="100" value={coverPosition.y} onChange={(event) => setCoverPosition((position) => ({ ...position, y: Number(event.target.value) }))}/></label></div>}<VideoAttachment postId={editing?.id} selected={videoFile} locked={!!videoSession.current} onSelect={setVideoFile} onPreparing={setVideoPreparing} onError={setNotice}/><label>{t("postAction")}<select name="status" defaultValue={editing?.status ?? "draft"}><option value="draft">{t("saveDraft")}</option><option value="published">{t("publishFamily")}</option></select></label><div className="form-buttons"><button type="button" className="button ghost" onClick={() => { if (!saving) setShowForm(false); }}>{t("cancel")}</button><button className="button orange" disabled={saving || photoPreparing || videoPreparing}>{photoPreparing ? t("photoPreparing") : saving ? t("savingPost") : t("savePost")}</button></div></fieldset>{videoProgress !== null && <div className="video-upload-status" role="status"><label htmlFor="video-progress">{language === "en" ? "Uploading video" : "Wysyłanie filmu"}: {videoProgress}%</label><progress id="video-progress" max={100} value={videoProgress}/>{(videoProgress < 100 || !saving) && <button className="text-button" type="button" onClick={() => void cancelVideo()}>{saving ? (language === "en" ? "Cancel upload" : "Anuluj wysyłanie") : (language === "en" ? "Remove selected video" : "Usuń wybrany film")}</button>}</div>}</form></div>}
   </div>;
 }
 

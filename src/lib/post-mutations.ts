@@ -38,6 +38,7 @@ export async function savePostWithPhotos(
   values: PostValues,
   authorId: string,
   files: File[],
+  beforeCommit?: (postId: string) => Promise<void>,
 ) {
   if (session.busy) return null;
   session.busy = true;
@@ -71,7 +72,8 @@ export async function savePostWithPhotos(
       if (error) throw error;
     }
 
-    // A new post stays private until every selected photo has been attached.
+    await beforeCommit?.(session.id);
+    // A new post stays private until every selected attachment has been verified.
     const { data, error } = await client.from("posts").update(values).eq("id", session.id).select(postColumns).single();
     if (error) throw error;
     if (!data) throw new Error("The saved post was not returned");
