@@ -13,7 +13,6 @@ export async function updateAccountApproval(accountId: string, formData: FormDat
     .from("profiles")
     .update({ is_approved: isApproved })
     .eq("id", accountId)
-    .eq("is_primary_owner", false)
     .select("id")
     .maybeSingle();
   redirect(data && !error ? "/admin?status=updated" : "/admin?status=error");
@@ -28,7 +27,6 @@ export async function updateAccountRole(accountId: string, formData: FormData) {
     .from("profiles")
     .update({ role })
     .eq("id", accountId)
-    .eq("is_primary_owner", false)
     .select("id")
     .maybeSingle();
   redirect(data && !error ? "/admin?status=updated" : "/admin?status=error");

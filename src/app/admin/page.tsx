@@ -22,7 +22,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const [{ data: profiles, error }, params] = await Promise.all([
     supabase.from("profiles")
-      .select("id, first_name, last_name, nickname, role, is_approved, is_primary_owner, created_at")
+      .select("id, first_name, last_name, nickname, role, is_approved, created_at")
       .neq("id", userId)
       .order("created_at", { ascending: true }),
     searchParams,
@@ -58,7 +58,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
             </span>
           </div>
           <div className="account-card-actions">
-            {profile.is_primary_owner ? <span className="role-pill">{t("protectedOwner")}</span> : <>
               <form action={updateAccountApproval.bind(null, profile.id)}>
                 <input type="hidden" name="approved" value={String(!profile.is_approved)} />
                 <button className={`button ${profile.is_approved ? "ghost" : "orange"}`}>
@@ -73,7 +72,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
               </select></label>
               <button className="button ghost">{t("saveRole")}</button>
               </form>
-            </>}
           </div>
         </article>;
       })}

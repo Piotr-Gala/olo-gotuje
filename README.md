@@ -20,12 +20,12 @@ Bez konfiguracji Supabase strona pokaże instrukcję podłączenia projektu. Nie
 3. Zastosuj `supabase/migrations/20261017212023_initial_schema.sql` w SQL Editorze Supabase. Migracja tworzy tabele, reguły RLS oraz prywatny bucket na zdjęcia do 8 MB.
 4. Włącz rejestrację e-mail/hasło w Supabase Authentication. Po rejestracji konto oczekuje na potwierdzenie adresu e-mail i zatwierdzenie administratora.
 5. Zastosuj pozostałe migracje z `supabase/migrations` w kolejności nazw plików. Pierwsze konto rodzica ustaw w `profiles` jako `role = admin`, `is_approved = true`; konto Olo jako `role = owner`, `is_approved = true`.
-6. Zaloguj się jako administrator i otwórz **Konta**, aby zatwierdzać konta rodzinne i zarządzać rolami. Admin może nadawać i odbierać role członka, administratora i właściciela. Po zastosowaniu migracji `protect_future_primary_owner` pierwsze zatwierdzone konto `owner` zostaje automatycznie oznaczone jako chronione, również gdy rolę nadano po migracji. Dostęp jest weryfikowany przez Server Actions i RLS.
+6. Sign in as an administrator and open **Accounts** to approve family accounts and manage member/admin/owner roles. All owners are manageable; administrators cannot change their own role or approval. Server Actions and RLS enforce these rules.
 7. Uruchom ponownie aplikację. Zalogowane i zatwierdzone konta widzą opublikowane wpisy aktywnych działów; admin i owner mogą tworzyć, edytować, publikować, usuwać wpisy i włączać działy.
 
 Do testowania na telefonie w sieci lokalnej ustaw `NEXT_ALLOWED_DEV_ORIGINS` w `.env.local` jako listę hostów oddzielonych przecinkami (bez protokołu), np. `192.168.1.20,olo-pc.tailnet-name.ts.net`. Adresy są zależne od sieci i nie są wpisane do publicznej konfiguracji.
 
-Nigdy nie wkładaj klucza `service_role` do aplikacji ani do zmiennych `NEXT_PUBLIC_*`. Ten prototyp nie ma jeszcze komentowania, subskrypcji powiadomień ani osobnego dziecięcego interfejsu publikowania.
+Keep service-role credentials out of browser code and NEXT_PUBLIC_* variables. The nickname-login Edge Function uses Supabase-injected server credentials; the web application uses the signed-in user session. Notifications and a separate child publishing interface are not implemented.
 
 ## Role
 
@@ -37,7 +37,7 @@ Nigdy nie wkładaj klucza `service_role` do aplikacji ani do zmiennych `NEXT_PUB
 
 Run `npm.cmd test` for post save/delete failure scenarios and database authorization regression tests, then `npm.cmd run build` for the production build and TypeScript checks. Database tests run migrations in a disposable in-memory PostgreSQL instance using PGlite; they do not connect to the Supabase project. Supabase-managed Auth and Storage interfaces are represented by minimal local schemas.
 
-Migration filenames match the versions already recorded in the linked project. Do not reapply renamed migrations to that database. The new `protect_future_primary_owner` migration must be applied separately before future owners receive automatic protection.
+Apply migrations in filename order. The simplify_owner_and_nickname_login migration removes the historical primary-owner protection; do not stop at the earlier protection migrations.
 
 ## Private videos (Cloudflare R2)
 
@@ -52,3 +52,13 @@ The browser uploads directly to R2 in 16 MiB parts, with progress, cancellation,
 RLS allows approved members to read ready videos only when the associated post is visible to them. Upload and deletion require an approved admin/owner, checked independently by the API and RLS. R2 credentials are used only on the server; Supabase uses the signed-in user's session, without a service-role key.
 
 Deleting a post retains a detached video cleanup record, even for direct database/API post deletion. Cleanup aborts the multipart upload before deleting the object. Failed cleanup remains retryable; the app retries when an editor opens the home page, after post deletion, or via **Retry video cleanup**. Recent records are retained for an hour to cover in-flight requests; a later cleanup pass removes them. This is an editor-driven retry queue, not a scheduled background worker. Keep R2's default rule that aborts unfinished multipart uploads after seven days as a fallback for interrupted initialization requests.
+
+## Family accounts and interactions
+
+- Login accepts an email or a case-insensitive nickname. Deploy `supabase/functions/nickname-login/index.js` as `nickname-login`; `supabase/config.toml` disables JWT verification because sign-in runs before a session exists. The nickname lookup RPC is restricted to the service role and returns no data to anonymous browser clients.
+- Profile settings update the login nickname and family display name together. Password changes require the current password and matching new passwords of at least eight characters. Pending accounts can manage their own settings without gaining family access.
+- Private `family-avatars` storage accepts prepared images up to 6 MiB. Browser input is JPG, PNG or WebP up to 15 MiB, resized/re-encoded before upload. Profiles store the original prepared image plus horizontal/vertical framing and zoom, so the circular crop can be adjusted later. Upload, deletion and crop assignment enforce account ownership.
+- Posts have private detail pages at `/wpis/[id]`. Draft and hidden-section access follows the existing post RLS. Light/dark preference is stored in the `olo-theme` cookie and rendered on the server.
+- Likes are stored per account, with a unique post/user pair. The heart toggles a like; its count opens the list of people who liked the post. Browser-only historical favorites are not automatically imported into an account.
+- Comments support up to 2,000 characters, retry-safe submission, own deletion and admin/owner moderation. The list appears before the add-comment form. Both comments and likes follow post visibility; selected-recipient private posts remain unimplemented.
+- Approved administrators see a small fixed refresh button on every page. It reloads the document, including client-held feed state.

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { LanguageProvider } from "@/components/LanguageProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { AdminRefresh } from "@/components/AdminRefresh";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,10 +16,12 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const language = (await cookies()).get("olo-language")?.value === "pl" ? "pl" : "en";
+  const cookieStore = await cookies();
+  const language = cookieStore.get("olo-language")?.value === "pl" ? "pl" : "en";
+  const theme = cookieStore.get("olo-theme")?.value === "dark" ? "dark" : "light";
   return (
-    <html lang={language}>
-      <body><LanguageProvider initialLanguage={language}>{children}</LanguageProvider></body>
+    <html lang={language} data-theme={theme}>
+      <body><LanguageProvider initialLanguage={language}><ThemeProvider initialTheme={theme}>{children}<AdminRefresh/></ThemeProvider></LanguageProvider></body>
     </html>
   );
 }

@@ -2,6 +2,24 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { changeOwnPassword } from "@/lib/account-password";
+import type { MessageKey } from "@/lib/i18n";
+
+export async function updateMyPassword(_previous: { message?: MessageKey }, formData: FormData): Promise<{ message?: MessageKey }> {
+  const supabase = await createClient();
+  if (!supabase) return { message: "passwordChangeFailed" };
+  const currentPassword = formData.get("current_password");
+  const newPassword = formData.get("new_password");
+  const repeatPassword = formData.get("repeat_password");
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string" || typeof repeatPassword !== "string") {
+    return { message: "passwordChangeFailed" };
+  }
+  try {
+    return { message: await changeOwnPassword(supabase, currentPassword, newPassword, repeatPassword) };
+  } catch {
+    return { message: "passwordChangeFailed" };
+  }
+}
 
 export async function updateMyFamilyProfile(formData: FormData) {
   const supabase = await createClient();
@@ -15,7 +33,7 @@ export async function updateMyFamilyProfile(formData: FormData) {
   if (typeof displayName !== "string" || typeof bio !== "string") redirect(`/profil/${userId}?status=error`);
   const cleanDisplayName = displayName.trim();
   const cleanBio = bio.trim();
-  if (cleanDisplayName.length < 1 || cleanDisplayName.length > 40 || cleanBio.length > 280) {
+  if (cleanDisplayName.length < 1 || cleanDisplayName.length > 40 || /[@\u0000-\u001f\u007f]/.test(cleanDisplayName) || cleanBio.length > 280) {
     redirect(`/profil/${userId}?status=error`);
   }
 
@@ -23,5 +41,5 @@ export async function updateMyFamilyProfile(formData: FormData) {
     p_display_name: cleanDisplayName,
     p_bio: cleanBio,
   });
-  redirect(`/profil/${userId}?status=${error ? "error" : "updated"}`);
+  redirect(`/profil/${userId}?status=${error?.code === "23505" ? "nickname-taken" : error ? "error" : "updated"}`);
 }

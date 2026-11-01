@@ -1,0 +1,4 @@
+[functions.nickname-login]
+# Sign-in must be reachable before the caller has a user session.
+verify_jwt = false
+entrypoint = "./functions/nickname-login/index.js"

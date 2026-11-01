@@ -5,6 +5,8 @@ import { PGlite } from "@electric-sql/pglite";
 
 const migrations = new URL("../supabase/migrations/", import.meta.url);
 const readMigration = name => readFileSync(new URL(name, migrations), "utf8");
+const loginMigration = readdirSync(migrations).find(name => name.endsWith("_simplify_owner_and_nickname_login.sql"));
+const accountMigration = readdirSync(migrations).find(name => name.endsWith("_editable_account_nickname.sql"));
 const ownerMigration = readdirSync(migrations).find(name => name.endsWith("_protect_future_primary_owner.sql"));
 
 async function databaseBeforeOwnerMigration() {
@@ -16,7 +18,7 @@ async function databaseBeforeOwnerMigration() {
     create role authenticated;
     create role service_role bypassrls;
     create schema auth;
-    create table auth.users (id uuid primary key, raw_user_meta_data jsonb);
+    create table auth.users (id uuid primary key, raw_user_meta_data jsonb, email text);
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
     $$;
@@ -32,7 +34,7 @@ async function databaseBeforeOwnerMigration() {
     grant usage on schema storage to authenticated;
     grant all on storage.objects to authenticated;
   `);
-  for (const name of readdirSync(migrations).filter(name => name.endsWith(".sql") && name !== ownerMigration).sort()) {
+  for (const name of readdirSync(migrations).filter(name => name.endsWith(".sql") && name !== ownerMigration && name !== loginMigration && name !== accountMigration).sort()) {
     await db.exec(readMigration(name));
   }
   return db;
@@ -46,7 +48,7 @@ const ids = {
 
 async function seedAccounts(db) {
   for (const id of Object.values(ids)) {
-    await db.query("insert into auth.users (id, raw_user_meta_data) values ($1, $2)", [id, { birth_date: "2000-01-01", nickname: "Test account" }]);
+    await db.query("insert into auth.users (id, raw_user_meta_data) values ($1, $2)", [id, { birth_date: "2000-01-01", nickname: `T${id}` }]);
   }
   await db.query("update public.profiles set role='admin', is_approved=true where id=$1", [ids.admin]);
 }
@@ -63,10 +65,12 @@ async function asUser(db, userId, sql, params = []) {
   });
 }
 
-test("all migrations, existing RLS regression, and future owner protection", async t => {
+test("all migrations, existing RLS regression, and manageable owner roles", async t => {
   const db = await databaseBeforeOwnerMigration();
   try {
     await db.exec(readMigration(ownerMigration));
+    await db.exec(readMigration(loginMigration));
+    await db.exec(readMigration(accountMigration));
     await db.exec(readFileSync(new URL("../supabase/tests/private_rls_helpers.sql", import.meta.url), "utf8"));
     await seedAccounts(db);
 
@@ -84,30 +88,24 @@ test("all migrations, existing RLS regression, and future owner protection", asy
       assert.equal((await asAdmin(db, "delete from storage.objects where bucket_id='family-post-images' and name=$1 returning name", [path])).rows.length, 1);
     });
 
-    await t.test("a pending owner remains approvable and approval assigns protection", async () => {
-      await asAdmin(db, "update public.profiles set role='owner' where id=$1 returning id", [ids.owner]);
-      let profile = (await db.query("select is_primary_owner from public.profiles where id=$1", [ids.owner])).rows[0];
-      assert.equal(profile.is_primary_owner, false);
-      const result = await asAdmin(db, "update public.profiles set is_approved=true where id=$1 returning is_primary_owner", [ids.owner]);
-      assert.equal(result.rows[0].is_primary_owner, true);
-    });
-
-    await t.test("an admin cannot demote or suspend the protected owner", async () => {
-      assert.equal((await asAdmin(db, "update public.profiles set role='member' where id=$1 returning id", [ids.owner])).rows.length, 0);
-      assert.equal((await asAdmin(db, "update public.profiles set is_approved=false where id=$1 returning id", [ids.owner])).rows.length, 0);
-    });
-
-    await t.test("other owners remain manageable", async () => {
-      const result = await asAdmin(db, "update public.profiles set role='owner', is_approved=true where id=$1 returning is_primary_owner", [ids.other]);
-      assert.equal(result.rows[0].is_primary_owner, false);
-      assert.equal((await asAdmin(db, "update public.profiles set role='member', is_approved=false where id=$1 returning id", [ids.other])).rows.length, 1);
-    });
-
-    await t.test("clients cannot forge the protection flag or edit their own role", async () => {
-      await assert.rejects(asAdmin(db, "update public.profiles set is_primary_owner=true where id=$1", [ids.other]), error => error.code === "42501");
+    await t.test("admins can approve, suspend and demote every owner but cannot edit themselves", async () => {
+      for (const id of [ids.owner, ids.other]) {
+        assert.equal((await asAdmin(db, "update public.profiles set role='owner', is_approved=true where id=$1 returning id", [id])).rows.length, 1);
+        assert.equal((await asAdmin(db, "update public.profiles set role='member', is_approved=false where id=$1 returning id", [id])).rows.length, 1);
+      }
+      await asAdmin(db, "update public.profiles set role='owner', is_approved=true where id=$1", [ids.owner]);
       assert.equal((await asAdmin(db, "update public.profiles set role='owner' where id=$1 returning id", [ids.admin])).rows.length, 0);
     });
 
+    await t.test("nickname resolution is private, case insensitive, and unique", async () => {
+      await db.query("update public.profiles set nickname='Olo' where id=$1", [ids.owner]);
+      await db.query("update auth.users set email='olo@accounts.olo.invalid' where id=$1", [ids.owner]);
+      assert.equal((await db.query("select public.login_user_for_nickname(' OLO ') as email")).rows[0].email, ids.owner);
+      assert.equal((await db.query("select public.login_user_for_nickname('missing') as email")).rows[0].email, null);
+      await assert.rejects(asAdmin(db, "select public.login_user_for_nickname('Olo')"), error => error.code === "42501");
+      await assert.rejects(db.transaction(async tx => { await tx.exec("set local role anon"); await tx.exec("select public.login_user_for_nickname('Olo')"); }), error => error.code === "42501");
+      await assert.rejects(db.query("update public.profiles set nickname=' olo ' where id=$1", [ids.other]), error => error.code === "23505");
+    });
     await t.test("family profiles expose only safe details to approved members", async () => {
       const pendingId = "10000000-0000-4000-8000-000000000004";
       await db.query("insert into auth.users (id, raw_user_meta_data) values ($1, $2)", [pendingId, { birth_date: "2000-01-01", nickname: "Pending" }]);
@@ -115,7 +113,7 @@ test("all migrations, existing RLS regression, and future owner protection", asy
       const visible = await asUser(db, ids.other, "select id, display_name, bio from public.family_profiles order by id");
       assert.equal(visible.rows.length, 3);
       assert.deepEqual(visible.rows.map(row => row.id).sort(), [ids.admin, ids.owner, ids.other].sort());
-      assert.equal((await asUser(db, pendingId, "select id from public.family_profiles")).rows.length, 0);
+      assert.deepEqual((await asUser(db, pendingId, "select id from public.family_profiles")).rows.map(row => row.id), [pendingId]);
       assert.equal((await asUser(db, ids.other, "select id from public.profiles where id=$1", [ids.admin])).rows.length, 0);
     });
 
@@ -123,9 +121,81 @@ test("all migrations, existing RLS regression, and future owner protection", asy
       await asUser(db, ids.other, "select public.update_my_family_profile($1, $2)", ["Kuchcik", "Lubię gotować."]);
       const own = (await db.query("select display_name, bio from public.family_profiles where id=$1", [ids.other])).rows[0];
       assert.deepEqual(own, { display_name: "Kuchcik", bio: "Lubię gotować." });
+      assert.equal((await db.query("select nickname from public.profiles where id=$1", [ids.other])).rows[0].nickname, "Kuchcik");
+      assert.equal((await db.query("select public.login_user_for_nickname(' KUCHCIK ') as id")).rows[0].id, ids.other);
+      const roleBefore = (await db.query("select role from public.profiles where id=$1", [ids.other])).rows[0].role;
+      await assert.rejects(asUser(db, ids.other, "select public.update_my_family_profile(' oLO ', 'Must roll back')"), error => error.code === "23505");
+      assert.deepEqual((await db.query("select display_name,bio from public.family_profiles where id=$1", [ids.other])).rows[0], own);
+      await assert.rejects(asUser(db, ids.other, "select public.update_my_family_profile('user@example.com', '')"), error => error.code === "22023");
+      assert.equal((await db.query("select role from public.profiles where id=$1", [ids.other])).rows[0].role, roleBefore);
       assert.equal((await asUser(db, ids.other, "update public.family_profiles set display_name='Nie moje' where id=$1 returning id", [ids.admin])).rows.length, 0);
       await assert.rejects(asUser(db, ids.other, "select public.update_my_family_profile($1, $2)", ["", ""]), error => error.code === "22023");
       assert.equal((await asUser(db, ids.other, "update public.profiles set role='admin' where id=$1 returning id", [ids.other])).rows.length, 0);
+    });
+
+    await t.test("pending members can rename themselves without gaining family access", async () => {
+      const pendingId = "10000000-0000-4000-8000-000000000004";
+      await asUser(db, pendingId, "select public.update_my_family_profile('Pending renamed', '')");
+      assert.equal((await asUser(db, pendingId, "select id from public.family_profiles")).rows.length, 1);
+      assert.equal((await asUser(db, pendingId, "select id from public.posts")).rows.length, 0);
+      const profile = (await db.query("select nickname,role,is_approved from public.profiles where id=$1", [pendingId])).rows[0];
+      assert.deepEqual(profile, { nickname: "Pending renamed", role: "member", is_approved: false });
+    });
+
+    await t.test("avatars enforce ownership, privacy and crop bounds", async () => {
+      const ownPath = `${ids.other}/avatar.webp`;
+      const otherPath = `${ids.admin}/avatar.webp`;
+      await asUser(db, ids.other, "insert into storage.objects(bucket_id,name) values('family-avatars',$1)", [ownPath]);
+      await asAdmin(db, "insert into storage.objects(bucket_id,name) values('family-avatars',$1)", [otherPath]);
+      await asUser(db, ids.other, "select public.update_my_avatar($1,20,75,1.8)", [ownPath]);
+      const crop = (await db.query("select avatar_path,avatar_x,avatar_y,avatar_zoom::float as zoom from public.family_profiles where id=$1", [ids.other])).rows[0];
+      assert.deepEqual(crop, { avatar_path: ownPath, avatar_x: 20, avatar_y: 75, zoom: 1.8 });
+      await assert.rejects(asUser(db, ids.other, "select public.update_my_avatar($1,50,50,1)", [otherPath]), error => error.code === "42501");
+      await assert.rejects(asUser(db, ids.other, "select public.update_my_avatar($1,101,50,1)", [ownPath]), error => error.code === "22023");
+      await assert.rejects(asUser(db, ids.other, "select public.update_my_avatar($1,50,50,'NaN')", [ownPath]), error => error.code === "22023");
+      await assert.rejects(asUser(db, ids.other, "insert into storage.objects(bucket_id,name) values('family-avatars',$1)", [`${ids.admin}/forged.webp`]), error => error.code === "42501");
+      assert.equal((await asUser(db, ids.owner, "select name from storage.objects where bucket_id='family-avatars' and name=$1", [ownPath])).rows.length, 1);
+      assert.equal((await asUser(db, '10000000-0000-4000-8000-000000000004', "select name from storage.objects where bucket_id='family-avatars'")).rows.length, 0);
+      assert.equal((await asUser(db, ids.owner, "delete from storage.objects where bucket_id='family-avatars' and name=$1 returning name", [ownPath])).rows.length, 0);
+      const pendingId = '10000000-0000-4000-8000-000000000004';
+      const pendingPath = `${pendingId}/pending.webp`;
+      await asUser(db, pendingId, "insert into storage.objects(bucket_id,name) values('family-avatars',$1)", [pendingPath]);
+      await asUser(db, pendingId, "select public.update_my_avatar($1,50,50,1)", [pendingPath]);
+      assert.equal((await asUser(db, ids.other, "select name from storage.objects where bucket_id='family-avatars' and name=$1", [pendingPath])).rows.length, 0);
+      await assert.rejects(asUser(db, ids.other, "update public.family_profiles set avatar_path=$1 where id=$2", [otherPath, ids.other]), error => error.code === "42501");
+    });
+
+    await t.test("likes and comments enforce identity, visibility, moderation and cascade", async () => {
+      const postId = "50000000-0000-4000-8000-000000000001";
+      const pendingId = "10000000-0000-4000-8000-000000000004";
+      await asAdmin(db, "insert into public.posts(id,section_slug,author_id,title,slug,status) values($1,'gotowanie',$2,'Discussion','discussion-test','published')", [postId, ids.admin]);
+      await asAdmin(db, "update public.sections set is_active=true where slug='gotowanie'");
+      await asUser(db, ids.other, "insert into public.post_likes(post_id) values($1)", [postId]);
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_likes(post_id) values($1)", [postId]), error => error.code === "23505");
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_likes(post_id,user_id) values($1,$2)", [postId, ids.owner]), error => error.code === "42501");
+      assert.equal((await asAdmin(db, "delete from public.post_likes where post_id=$1 returning user_id", [postId])).rows.length, 0);
+      const commentId = (await asUser(db, ids.other, "insert into public.post_comments(post_id,content) values($1,'Hello family') returning id", [postId])).rows[0].id;
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_comments(post_id,author_id,content) values($1,$2,'Impersonation')", [postId, ids.owner]), error => error.code === "42501");
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_comments(post_id,content) values($1,'   ')", [postId]), error => error.code === "23514");
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_comments(post_id,content) values($1,$2)", [postId, 'x'.repeat(2001)]), error => error.code === "23514");
+      await assert.rejects(asUser(db, pendingId, "insert into public.post_comments(post_id,content) values($1,'Pending')", [postId]), error => error.code === "42501");
+      assert.equal((await asUser(db, pendingId, "select id from public.post_comments")).rows.length, 0);
+      assert.equal((await asUser(db, ids.owner, "select id from public.post_comments where post_id=$1", [postId])).rows.length, 1);
+      await asAdmin(db, "update public.sections set is_active=false where slug='gotowanie'");
+      assert.equal((await asUser(db, ids.other, "select id from public.post_comments")).rows.length, 0);
+      assert.equal((await asUser(db, ids.other, "select user_id from public.post_likes")).rows.length, 0);
+      await assert.rejects(asUser(db, ids.other, "insert into public.post_comments(post_id,content) values($1,'Hidden')", [postId]), error => error.code === "42501");
+      await asAdmin(db, "update public.sections set is_active=true where slug='gotowanie'");
+      await db.query("update public.profiles set is_approved=true where id=$1", [pendingId]);
+      assert.equal((await asUser(db, pendingId, "delete from public.post_comments where id=$1 returning id", [commentId])).rows.length, 0);
+      assert.equal((await asUser(db, ids.owner, "delete from public.post_comments where id=$1 returning id", [commentId])).rows.length, 1);
+      const ownComment = (await asUser(db, ids.other, "insert into public.post_comments(post_id,content) values($1,'Own') returning id", [postId])).rows[0].id;
+      assert.equal((await asUser(db, ids.other, "delete from public.post_comments where id=$1 returning id", [ownComment])).rows.length, 1);
+      await asUser(db, ids.other, "insert into public.post_comments(post_id,content) values($1,'Cascade')", [postId]);
+      await asAdmin(db, "delete from public.posts where id=$1", [postId]);
+      assert.equal((await db.query("select id from public.post_comments where post_id=$1", [postId])).rows.length, 0);
+      assert.equal((await db.query("select user_id from public.post_likes where post_id=$1", [postId])).rows.length, 0);
+      await db.query("update public.profiles set is_approved=false where id=$1", [pendingId]);
     });
 
     await t.test("video RLS follows post visibility and cascade retains cleanup identities", async () => {
@@ -158,9 +228,6 @@ test("all migrations, existing RLS regression, and future owner protection", asy
       await asAdmin(db, "update public.sections set is_active=true where slug='gotowanie'");
     });
 
-    await t.test("the database rejects a second primary owner", async () => {
-      await assert.rejects(db.query("update public.profiles set is_primary_owner=true where id=$1", [ids.other]), error => error.code === "23505");
-    });
   } finally {
     await db.close();
   }

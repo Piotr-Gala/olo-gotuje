@@ -24,7 +24,7 @@ begin
 
   for i in 1..4 loop
     insert into auth.users (id, raw_user_meta_data)
-    values (user_ids[i], '{"birth_date":"2000-01-01","nickname":"Security regression fixture"}');
+    values (user_ids[i], jsonb_build_object('birth_date', '2000-01-01', 'nickname', 'F' || user_ids[i]::text));
     update public.profiles set role = roles[i], is_approved = (i <> 4)
     where id = user_ids[i];
   end loop;

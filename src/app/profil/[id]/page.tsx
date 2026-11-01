@@ -7,6 +7,9 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { getCoverPosition } from "@/lib/image-processing";
 import { PostVideo } from "@/components/PostVideo";
 import { updateMyFamilyProfile } from "../actions";
+import { PasswordForm } from "@/components/PasswordForm";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { AvatarEditor } from "@/components/AvatarEditor";
 
 type ProfilePageProps = {
   params: Promise<{ id: string }>;
@@ -25,10 +28,10 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
   const viewerId = claims?.claims?.sub;
   if (typeof viewerId !== "string") redirect("/login");
   const { data: viewer } = await supabase.from("profiles").select("is_approved").eq("id", viewerId).maybeSingle();
-  if (!viewer?.is_approved) redirect("/");
+  if (!viewer || (!viewer.is_approved && viewerId !== id)) redirect("/");
 
   const [{ data: profile }, { data: posts, error: postsError }] = await Promise.all([
-    supabase.from("family_profiles").select("id, display_name, bio").eq("id", id).maybeSingle(),
+    supabase.from("family_profiles").select("id, display_name, bio, avatar_path, avatar_x, avatar_y, avatar_zoom").eq("id", id).maybeSingle(),
     supabase.from("posts")
       .select("id, title, excerpt, content, created_at, metadata, post_images(id, storage_path, alt_text, sort_order)")
       .eq("author_id", id)
@@ -42,7 +45,9 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
     ? await supabase.storage.from("family-post-images").createSignedUrls(photoPaths, 3600)
     : { data: [] };
   const photoUrls = Object.fromEntries((signedPhotos ?? []).flatMap((photo) => photo.path && photo.signedUrl ? [[photo.path, photo.signedUrl]] : []));
-  const initials = profile.display_name.split(/\s+/).slice(0, 2).map((part: string) => Array.from(part)[0] ?? "").join("").toLocaleUpperCase();
+  const { data: signedAvatar } = profile.avatar_path
+    ? await supabase.storage.from("family-avatars").createSignedUrl(profile.avatar_path, 3600)
+    : { data: null };
   const isOwnProfile = viewerId === id;
 
   return <main className="profile-shell">
@@ -51,7 +56,7 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
       <div className="profile-nav-actions"><LanguageToggle/><Link className="button ghost" href="/">{t("backToBlog")}</Link></div>
     </header>
     <section className="profile-heading">
-      <div className="profile-avatar" aria-hidden="true">{initials || "🍳"}</div>
+      <ProfileAvatar url={signedAvatar?.signedUrl} name={profile.display_name} x={profile.avatar_x} y={profile.avatar_y} zoom={Number(profile.avatar_zoom)}/>
       <div className="profile-intro">
         <p className="eyebrow">{t("familyProfile")}</p>
         <h1>{profile.display_name}</h1>
@@ -64,6 +69,7 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
       <div><p className="eyebrow">{t("profileSettings")}</p><h2>{t("editProfile")}</h2></div>
       {query.status === "updated" && <p className="form-success" role="status">{t("profileSaved")}</p>}
       {query.status === "error" && <p className="form-error" role="alert">{t("profileSaveFailed")}</p>}
+      {query.status === "nickname-taken" && <p className="form-error" role="alert">{t("nicknameTaken")}</p>}
       <form action={updateMyFamilyProfile} className="profile-form">
         <label>{t("nickname")}<input name="display_name" required maxLength={40} defaultValue={profile.display_name}/></label>
         <label>{t("profileBio")}<textarea name="bio" rows={3} maxLength={280} defaultValue={profile.bio}/></label>
@@ -71,6 +77,9 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
         <button className="button orange">{t("profileSave")}</button>
       </form>
     </section>}
+
+    {isOwnProfile && <AvatarEditor userId={viewerId} name={profile.display_name} initialUrl={signedAvatar?.signedUrl ?? null} initialPath={profile.avatar_path} initialX={profile.avatar_x} initialY={profile.avatar_y} initialZoom={Number(profile.avatar_zoom)}/>}
+    {isOwnProfile && <PasswordForm language={language}/>}
 
     <section className="profile-posts">
       <div className="profile-posts-heading"><div><p className="eyebrow">{t("profilePostsEyebrow")}</p><h2>{t("profilePosts", { count: posts?.length ?? 0 })}</h2></div></div>
