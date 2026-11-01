@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { loadTypeScript } from "./load-typescript.mjs";
 
 const { mutateVideo, readPostVideo, assertVideoMetadata, expectedPartSize, VIDEO_PART_BYTES, isSameVideoOrigin } = await loadTypeScript("../src/lib/video-service.ts");
+const userId = "10000000-0000-4000-8000-000000000001";
 const postId = "20000000-0000-4000-8000-000000000001";
 const videoId = "30000000-0000-4000-8000-000000000001";
 const start = { action: "start", id: videoId, postId, name: "test.mp4", size: 40, type: "video/mp4" };
@@ -34,7 +35,7 @@ function fixture() {
     if (method === "POST") {
       if (!rows.has(body.id)) {
         if ([...rows.values()].some(row => row.post_id === body.post_id)) return response({ code: "23505" }, 409);
-        rows.set(body.id, { ...body, object_key: `videos/${body.id}.mp4`, state: "uploading", upload_id: null, cleanup_after: null });
+        rows.set(body.id, { ...body, author_id: userId, object_key: `videos/${body.id}.mp4`, state: "uploading", upload_id: null, cleanup_after: null });
       }
       return response(null, 201);
     }
@@ -65,7 +66,7 @@ function fixture() {
     async abort() {},
     async remove() { state.removes++; if (state.failRemove) throw new Error("R2 unavailable"); state.object = null; },
   };
-  return { state, client, storage, action: input => mutateVideo(client, storage, input) };
+  return { state, client, storage, action: input => mutateVideo(client, storage, input, userId) };
 }
 
 test("video format, exact 1 GB limit, and part bounds are validated", () => {
@@ -161,3 +162,15 @@ test("a missing or hidden post never receives a signed URL", async () => {
   f.state.post = false;
   await assert.rejects(readPostVideo(f.client, f.storage, postId), /video-missing/);
 });
+
+ test("cleanup never touches another author's detached R2 object", async () => {
+  const f = fixture();
+  await f.action(start);
+  Object.assign(f.state.rows.get(videoId), {
+    author_id: '10000000-0000-4000-8000-000000000002',
+    post_id: null, state: 'deleting', cleanup_after: new Date(0).toISOString(),
+  });
+  await f.action({ action: 'cleanup' });
+  assert.equal(f.state.removes, 0);
+  assert.equal(f.state.rows.size, 1);
+ });

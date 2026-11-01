@@ -2,6 +2,11 @@ export type Language = "pl" | "en";
 
 const messages = {
   pl: {
+    aboutPageTitle: "O Olku i o tym miejscu.", aboutPageIntro: "Kilka słów o pomysłach Olka, rodzinnym blogu i tym, jak z niego korzystamy.",
+    aboutOloTitle: "O Olku", aboutOloText: "Ten blog to miejsce na pomysły Olka — gotowanie, budowanie z LEGO, muzykę i wszystko, czym chce się podzielić z rodziną. Wpisy pozwalają zebrać te pomysły i wracać do nich później.",
+    aboutSiteTitle: "O stronie", aboutSiteText: "Olo Gotuje to prywatny blog rodzinny. Oprócz wpisów Olka znajdziesz tu posty innych autorów. Na głównej pokazujemy najnowsze, a w zakładce Wpisy — pełną listę z wyszukiwarką i ulubionymi.",
+    aboutInfoTitle: "Ważne informacje", aboutAccessInfo: "Wpisy są dostępne po zalogowaniu i zatwierdzeniu konta przez administratora.", aboutAuthorInfo: "Każdy post ma swojego autora. Tylko autor może edytować lub usunąć własny wpis i jego załączniki.", aboutSharingInfo: "Szanujmy prywatność rodziny: przed udostępnieniem cudzych treści, zdjęć lub filmów poza blogiem zapytajmy autora o zgodę.",
+    latestPosts: "Najnowsze wpisy", allPosts: "Wszystkie wpisy",
     adminRefresh: "Odśwież stronę",
     whoLiked: "Kto polubił", loadingLikes: "Ładowanie polubień…", likesLoadFailed: "Nie udało się wczytać polubień.", noLikes: "Nikt jeszcze nie polubił tego wpisu.",
     profilePhoto: "Zdjęcie profilowe", chooseProfilePhoto: "Wybierz zdjęcie", avatarHint: "JPG, PNG lub WebP, do 15 MB. Ustaw położenie i przybliżenie w podglądzie koła.", avatarZoom: "Przybliżenie", centerPhoto: "Wyśrodkuj zdjęcie", saveProfilePhoto: "Zapisz zdjęcie i kadr", avatarSaved: "Zdjęcie i kadr zapisane.", avatarFailed: "Nie udało się zapisać zdjęcia. Spróbuj ponownie.", avatarInvalid: "Wybierz JPG, PNG lub WebP do 15 MB.",
@@ -17,16 +22,16 @@ const messages = {
     viewPosts: "Zobacz wpisy", addPost: "＋ Dodaj wpis", olaIdeas: "✨ Pomysły Ola", familyOnly: "💚 Tylko dla rodziny",
     sectionIntro: "Twoje miejsce, twoje tematy", activeSections: "Aktywne działy",
     sectionHelp: "Włącz tylko te, w których Olo chce publikować. Wyłączony dział nie pojawia się rodzinie.",
-    whatsNew: "Co nowego u Ola?", familyFeed: "Rodzinny blog.", feedHelp: "Wybierz dział albo wyszukaj wpis. Zdjęcia otwierają się w pełnym rozmiarze.",
+    whatsNew: "Co nowego u Ola?", familyFeed: "Rodzinny blog.", feedHelp: "Przeglądaj wpisy rodziny, wyszukaj coś lub wróć do ulubionych.",
     all: "Wszystkie", favorites: "♥ Ulubione", searchPost: "Szukaj wpisu…", searchPostLabel: "Szukaj wpisu",
     favoriteToggle: "Dodaj lub usuń z ulubionych", noPostsAdmin: "Tu jeszcze nie ma wpisów. Dodaj pierwszy!", noPostsMember: "Nie ma tu jeszcze wpisów — zajrzyj później.",
     readPost: "Czytaj wpis →", author: "Autor", draft: "Szkic", published: "Opublikowano", edit: "Edytuj", delete: "Usuń",
     quoteEyebrow: "Tu jest miejsce na wszystko", quote: "„Najlepsze pomysły zaczynają się od: a co, jeśli…?”",
     aboutEyebrow: "Nasze miejsce w sieci", aboutTitle: "Dobre pomysły. Rodzinna sprawa.",
-    aboutText: "to rodzinny blog, który rośnie razem z pomysłami Ola. Działy włączamy wtedy, kiedy Olo ma ochotę coś w nich pokazać.",
+    aboutText: "to miejsce na rodzinne przepisy, konstrukcje LEGO, muzykę i inne pomysły, którymi chcemy się podzielić.",
     footer: "Prywatny blog rodzinny. 🍅", closeNotice: "Zamknij komunikat",
     formNew: "Nowy wpis", formEdit: "Zmień wpis", formNewTitle: "Co Olo chce pokazać?", formEditTitle: "Edytuj wpis",
-    authorAssigned: "Wpis zostanie przypisany do Twojego konta.", section: "Dział", title: "Tytuł", excerpt: "Krótki opis", optional: "(opcjonalnie)",
+    authorAssigned: "Wpis zostanie przypisany do Twojego konta.", section: "Czego dotyczy wpis?", title: "Tytuł", excerpt: "Krótki opis", optional: "(opcjonalnie)",
     titlePlaceholder: "Np. Mój kosmiczny makaron", excerptPlaceholder: "Jedno zdanie o wpisie", content: "Treść wpisu", contentPlaceholder: "Opowiedz, co się wydarzyło…",
     photos: "Zdjęcia", photoLimit: "(opcjonalnie, pliki do 15 MB; zdjęcia są zmniejszane przed wysłaniem)", keepPhotos: "Obecne zdjęcia zostaną zachowane. Nowe możesz dodać powyżej.",
     photoTooLarge: "Zdjęcie {name} przekracza limit pliku źródłowego 15 MB.", photoPrepareFailed: "Nie udało się przygotować zdjęcia {name}. Użyj JPG, PNG, WebP lub GIF do 8 MB.", photoPreparing: "Przygotowywanie zdjęć…", cropPhoto: "Ustaw kadr zdjęcia", cropHorizontal: "Kadr poziomy", cropVertical: "Kadr pionowy",
@@ -62,6 +67,10 @@ const messages = {
     logoutFailed: "Nie udało się wylogować. Spróbuj ponownie.",
   },
   en: {
+    aboutPageTitle: "About Olo and this place.", aboutPageIntro: "A few words about Olo’s ideas, our family blog, and how we use it.",
+    aboutOloTitle: "About Olo", aboutOloText: "This blog is a place for Olo’s ideas — cooking, building with LEGO, music, and anything he wants to share with the family. Posts bring those ideas together so we can return to them later.",
+    aboutSiteTitle: "About the site", aboutSiteText: "Olo Gotuje is a private family blog. Alongside Olo’s posts, you will find posts from other authors. The home page highlights the latest, while Posts has the full feed, search, and favorites.",
+    aboutInfoTitle: "Useful information", aboutAccessInfo: "Posts are available after signing in and having your account approved by an administrator.", aboutAuthorInfo: "Every post has an author. Only its author can edit or delete the post and its attachments.", aboutSharingInfo: "Respect the family’s privacy: ask the author before sharing their content, photos, or videos outside the blog.",
     adminRefresh: "Refresh page",
     whoLiked: "Who liked this", loadingLikes: "Loading likes…", likesLoadFailed: "Could not load likes.", noLikes: "No likes yet.",
     profilePhoto: "Profile photo", chooseProfilePhoto: "Choose a photo", avatarHint: "JPG, PNG or WebP, up to 15 MB. Adjust the position and zoom in the circular preview.", avatarZoom: "Zoom", centerPhoto: "Center photo", saveProfilePhoto: "Save photo and crop", avatarSaved: "Photo and crop saved.", avatarFailed: "Could not save the photo. Try again.", avatarInvalid: "Choose a JPG, PNG or WebP up to 15 MB.",
@@ -70,23 +79,23 @@ const messages = {
     changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", repeatPassword: "Repeat new password", passwordChanging: "Changing password…",
     currentPasswordRequired: "Enter your current password.", currentPasswordInvalid: "The current password is incorrect.", passwordMismatch: "The new passwords must match.", passwordUnchanged: "Choose a password different from your current one.", passwordChangeFailed: "Could not change the password. Try again.", passwordChanged: "Password changed.", nicknameTaken: "This nickname is already taken. Choose another one.",
     changeLanguage: "Zmień język na polski",
-    home: "Home", posts: "Posts", sections: "Sections", about: "About", logout: "Log out",
+    latestPosts: "Latest posts", allPosts: "All posts", home: "Home", posts: "Posts", sections: "Sections", about: "About", logout: "Log out",
     roleOwner: "Olo · creator", roleAdmin: "Admin", accounts: "Accounts",
     familyBlog: "Private family blog", heroTitle: "Olo cooks and creates!",
     heroDescription: "Family recipes, builds, and music ideas — all in one place.",
     viewPosts: "View posts", addPost: "＋ Add a post", olaIdeas: "✨ Olo’s ideas", familyOnly: "💚 Family only",
     sectionIntro: "Your space, your topics", activeSections: "Active sections",
     sectionHelp: "Enable only the sections Olo wants to post in. Disabled sections are hidden from the family.",
-    whatsNew: "What’s new from Olo?", familyFeed: "Family blog.", feedHelp: "Choose a section or search for a post. Photos open at full size.",
+    whatsNew: "What’s new from Olo?", familyFeed: "Family blog.", feedHelp: "Browse family posts, search for something, or revisit your favorites.",
     all: "All", favorites: "♥ Favorites", searchPost: "Search posts…", searchPostLabel: "Search posts",
     favoriteToggle: "Add to or remove from favorites", noPostsAdmin: "There are no posts yet. Add the first one!", noPostsMember: "There are no posts here yet — check back later.",
     readPost: "Read post →", author: "Author", draft: "Draft", published: "Published", edit: "Edit", delete: "Delete",
     quoteEyebrow: "A place for everything", quote: "“The best ideas start with: what if…?”",
     aboutEyebrow: "Our place online", aboutTitle: "Good ideas. A family thing.",
-    aboutText: " is a family blog that grows with Olo’s ideas. We enable sections whenever Olo feels like sharing something there.",
+    aboutText: " is a place for family recipes, LEGO builds, music, and other ideas we want to share.",
     footer: "Private family blog. 🍅", closeNotice: "Dismiss message",
     formNew: "New post", formEdit: "Edit post", formNewTitle: "What would Olo like to share?", formEditTitle: "Edit post",
-    authorAssigned: "This post will be assigned to your account.", section: "Section", title: "Title", excerpt: "Short description", optional: "(optional)",
+    authorAssigned: "This post will be assigned to your account.", section: "What is this post about?", title: "Title", excerpt: "Short description", optional: "(optional)",
     titlePlaceholder: "E.g. My cosmic pasta", excerptPlaceholder: "One sentence about the post", content: "Post content", contentPlaceholder: "Tell us what happened…",
     photos: "Photos", photoLimit: "(optional, files up to 15 MB; photos are resized before upload)", keepPhotos: "Current photos will be kept. You can add new ones above.",
     photoTooLarge: "Photo {name} exceeds the 15 MB source file limit.", photoPrepareFailed: "Could not prepare {name}. Use JPG, PNG, WebP, or GIF up to 8 MB.", photoPreparing: "Preparing photos…", cropPhoto: "Adjust photo framing", cropHorizontal: "Horizontal framing", cropVertical: "Vertical framing",
@@ -135,5 +144,6 @@ export function sectionName(language: Language, slug: string, fallback: string):
   if (slug === "gotowanie") return language === "en" ? "🍝 Cooking" : "🍝 Gotowanie";
   if (slug === "lego") return "🧱 LEGO";
   if (slug === "muzyka") return language === "en" ? "🎵 Music" : "🎵 Muzyka";
+  if (slug === "inne") return language === "en" ? "📝 Other" : "📝 Inne";
   return fallback;
 }

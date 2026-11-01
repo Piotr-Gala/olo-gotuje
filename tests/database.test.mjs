@@ -34,7 +34,7 @@ async function databaseBeforeOwnerMigration() {
     grant usage on schema storage to authenticated;
     grant all on storage.objects to authenticated;
   `);
-  for (const name of readdirSync(migrations).filter(name => name.endsWith(".sql") && name !== ownerMigration && name !== loginMigration && name !== accountMigration).sort()) {
+  for (const name of readdirSync(migrations).filter(name => name.endsWith(".sql") && name !== ownerMigration && name !== loginMigration && name !== accountMigration && !name.endsWith("_author_owned_posts.sql")).sort()) {
     await db.exec(readMigration(name));
   }
   return db;
@@ -245,3 +245,40 @@ test("the migration protects an approved owner that already exists", async () =>
     await db.close();
   }
 });
+
+ test("post authorship protects posts, media and cleanup from other editors", async () => {
+  const db = await databaseBeforeOwnerMigration();
+  try {
+    await db.exec(readMigration(ownerMigration));
+    await db.exec(readMigration(loginMigration));
+    await db.exec(readMigration(accountMigration));
+    await seedAccounts(db);
+    await db.query("update public.profiles set role='owner',is_approved=true where id=$1", [ids.owner]);
+    await db.exec(readMigration(readdirSync(migrations).find(name => name.endsWith('_author_owned_posts.sql'))));
+    const post = '50000000-0000-4000-8000-000000000001';
+    const video = '50000000-0000-4000-8000-000000000002';
+    const path = post + '/cover.png';
+    await asAdmin(db,"insert into public.posts(id,section_slug,author_id,title,slug) values($1,'gotowanie',$2,'Own draft','ownership-test')",[post,ids.admin]);
+    assert.equal((await asUser(db,ids.owner,'select id from public.posts where id=$1',[post])).rows.length,0);
+    await asAdmin(db,"insert into storage.objects(bucket_id,name) values('family-post-images',$1)",[path]);
+    await asAdmin(db,'insert into public.post_images(post_id,storage_path) values($1,$2)',[post,path]);
+    await asAdmin(db,"insert into public.post_videos(id,post_id,file_name,size_bytes) values($1,$2,'own.mp4',40)",[video,post]);
+    await asAdmin(db,"update public.posts set status='published' where id=$1",[post]);
+    await asAdmin(db,"update public.post_videos set state='ready' where id=$1",[video]);
+    await asAdmin(db,"update public.sections set is_active=true where slug='gotowanie'");
+    assert.equal((await asUser(db,ids.owner,'select id from public.posts where id=$1',[post])).rows.length,1);
+    for (const sql of ["update public.posts set title='stolen' where id=$1 returning id",'delete from public.posts where id=$1 returning id']) {
+      assert.equal((await asUser(db,ids.owner,sql,[post])).rows.length,0);
+    }
+    await assert.rejects(asAdmin(db,'update public.posts set author_id=$1 where id=$2',[ids.owner,post]),e=>e.code==='42501');
+    await assert.rejects(asUser(db,ids.owner,'insert into public.post_images(post_id,storage_path) values($1,$2)',[post,path]),e=>e.code==='42501');
+    assert.equal((await asUser(db,ids.owner,'delete from public.post_images where post_id=$1 returning id',[post])).rows.length,0);
+    assert.equal((await asUser(db,ids.owner,"update storage.objects set name=name where name=$1 returning id",[path])).rows.length,0);
+    assert.equal((await asUser(db,ids.owner,"delete from storage.objects where name=$1 returning id",[path])).rows.length,0);
+    assert.equal((await asUser(db,ids.owner,'update public.post_videos set post_id=null where id=$1 returning id',[video])).rows.length,0);
+    await asAdmin(db,'delete from public.posts where id=$1',[post]);
+    assert.equal((await asUser(db,ids.owner,'select id from public.post_videos where id=$1',[video])).rows.length,0);
+    assert.equal((await asAdmin(db,"delete from storage.objects where name=$1 returning id",[path])).rows.length,1);
+    assert.equal((await asAdmin(db,'select id from public.post_videos where id=$1',[video])).rows.length,1);
+  } finally { await db.close(); }
+ });

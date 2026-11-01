@@ -24,7 +24,15 @@ async function handle(request: Request) {
     if (text.length > 4096) throw new VideoError("video-request");
     const input = JSON.parse(text);
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new VideoError("video-request");
-    return json(await mutateVideo(client, storage, input));
+    // Published videos can be read by others, so authorize every mutation before R2 access.
+    if (input.action !== "cleanup") {
+      const table = input.action === "start" ? "posts" : "post_videos";
+      const id = input.action === "start" ? input.postId : input.id;
+      if (typeof id !== "string") throw new VideoError("video-request");
+      const { data: target, error } = await client.from(table).select("author_id").eq("id", id).maybeSingle();
+      if (error || !target || target.author_id !== auth.user.id) throw new VideoError("video-forbidden", 403);
+    }
+    return json(await mutateVideo(client, storage, input, auth.user.id));
   } catch (error) {
     if (error instanceof VideoError) return json({ error: error.code }, error.status);
     if (error instanceof SyntaxError) return json({ error: "video-request" }, 400);

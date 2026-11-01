@@ -5,7 +5,6 @@ import { getLanguage } from "@/lib/language-server";
 import { translate } from "@/lib/i18n";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { getCoverPosition } from "@/lib/image-processing";
-import { PostVideo } from "@/components/PostVideo";
 import { updateMyFamilyProfile } from "../actions";
 import { PasswordForm } from "@/components/PasswordForm";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -33,7 +32,7 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
   const [{ data: profile }, { data: posts, error: postsError }] = await Promise.all([
     supabase.from("family_profiles").select("id, display_name, bio, avatar_path, avatar_x, avatar_y, avatar_zoom").eq("id", id).maybeSingle(),
     supabase.from("posts")
-      .select("id, title, excerpt, content, created_at, metadata, post_images(id, storage_path, alt_text, sort_order)")
+      .select("id, title, excerpt, created_at, metadata, post_images(id, storage_path, alt_text, sort_order)")
       .eq("author_id", id)
       .eq("status", "published")
       .order("created_at", { ascending: false }),
@@ -93,9 +92,7 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
           {coverUrl && <img className="profile-post-cover" src={coverUrl} alt={cover.alt_text || post.title} style={{ objectPosition: `${coverPosition.x ?? 50}% ${coverPosition.y ?? 50}%` }}/>}
           <div className="card-body"><p className="meta">{new Date(post.created_at).toLocaleDateString(language === "en" ? "en-US" : "pl-PL")}</p>
             <h3>{post.title}</h3>{post.excerpt && <p>{post.excerpt}</p>}
-            <div className="profile-post-content">{post.content.split("\n").filter(Boolean).map((line: string, index: number) => <p key={index}>{line}</p>)}
-              <PostVideo postId={post.id}/>{post.post_images.slice(1).map((photo) => photoUrls[photo.storage_path] && <img className="inline-post-image" key={photo.id} src={photoUrls[photo.storage_path]} alt={photo.alt_text || post.title}/>)}
-            </div>
+            <Link className="post-read-trigger" href={`/wpis/${post.id}`}>{t("readPost")}</Link>
           </div>
         </article>;
       })}</div>

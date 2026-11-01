@@ -82,9 +82,9 @@ async function cleanRow(client: SupabaseClient, storage: VideoStorage, row: Vide
     checked(await client.from("post_videos").delete().eq("id", row.id).eq("state", "deleting"));
   }
 }
-export async function mutateVideo(client: SupabaseClient, storage: VideoStorage, input: Record<string, unknown>) {
+export async function mutateVideo(client: SupabaseClient, storage: VideoStorage, input: Record<string, unknown>, userId: string) {
   if (input.action === "cleanup") {
-    const rows = checked(await client.from("post_videos").select("*").eq("state", "deleting").order("cleanup_after").limit(20)) as VideoRow[];
+    const rows = checked(await client.from("post_videos").select("*").eq("state", "deleting").eq("author_id", userId).order("cleanup_after").limit(20)) as VideoRow[];
     let failures = 0;
     for (const row of rows) { try { await cleanRow(client, storage, row); } catch { failures++; } }
     return { cleanupPending: failures > 0 };
