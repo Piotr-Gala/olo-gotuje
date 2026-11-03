@@ -45,7 +45,8 @@ function fixture() {
         response = json({ ...post, post_images: [...state.images.values()].filter(image => image.post_id === id) });
       }
     } else if (url.pathname === "/rest/v1/post_images") {
-      state.images.set(body.id, body);
+      if (method === "DELETE") state.images.delete(url.searchParams.get("id")?.slice(3));
+      else state.images.set(body.id, body);
       response = json(null, 201);
     } else if (url.pathname.startsWith("/storage/v1/object/family-post-images/")) {
       // Selected photos must never make a new post visible before the final update.
@@ -100,6 +101,45 @@ test("video verification failure leaves a draft and retry reuses uploaded photos
   });
   assert.equal(state.posts.get(session.id).status, "published");
   assert.equal(state.requests.filter(request => request.startsWith("POST /storage/")).length, photoRequests);
+});
+
+test("a changed retry selection removes withdrawn photos before publication", async () => {
+  const { state, client, session } = fixture();
+  await assert.rejects(savePostWithPhotos(client, session, values, "editor", photos, async () => { throw new Error("Video failed"); }));
+  const replacement = new File(["replacement"], "replacement.png", { type: "image/png", lastModified: 2 });
+  const post = await savePostWithPhotos(client, session, values, "editor", [replacement]);
+  assert.equal(post.status, "published");
+  assert.equal(post.post_images.length, 1);
+  assert.match(post.post_images[0].storage_path, /replacement.png$/);
+  assert.equal(post.post_images[0].sort_order, 0);
+  assert.equal(state.files.size, 1);
+});
+
+test("withdrawal cleanup failure blocks publication and remains retryable", async () => {
+  const { state, client, session } = fixture();
+  await assert.rejects(savePostWithPhotos(client, session, values, "editor", photos, async () => { throw new Error("Video failed"); }));
+  state.loseResponse = "DELETE /storage/v1/object/family-post-images";
+  await assert.rejects(savePostWithPhotos(client, session, values, "editor", []));
+  assert.equal(state.posts.get(session.id).status, "draft");
+  const post = await savePostWithPhotos(client, session, values, "editor", []);
+  assert.equal(post.post_images.length, 0);
+  assert.equal(state.files.size, 0);
+  assert.equal(session.images.size, 0);
+});
+
+test("withdrawing a session addition preserves pre-existing attachments", async () => {
+  const { state, client } = fixture();
+  const original = { id: "original", post_id: "existing", storage_path: "existing/original.png", sort_order: 0 };
+  const existing = { id: "existing", ...values, post_images: [original] };
+  state.posts.set(existing.id, { ...existing });
+  state.images.set(original.id, original);
+  state.files.add(original.storage_path);
+  state.allowPublishedUpload = true;
+  const session = createPostSaveSession(existing);
+  await assert.rejects(savePostWithPhotos(client, session, values, "editor", photos, async () => { throw new Error("Video failed"); }));
+  const post = await savePostWithPhotos(client, session, values, "editor", []);
+  assert.deepEqual(post.post_images, [original]);
+  assert.deepEqual([...state.files], [original.storage_path]);
 });
 
 for (const operation of ["POST /rest/v1/posts", "POST /storage/v1/object/family-post-images/", "POST /rest/v1/post_images", "PATCH /rest/v1/posts"]) {

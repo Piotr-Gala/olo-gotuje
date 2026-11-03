@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "node --test tests/post-mutations.test.mjs tests/database.test.mjs tests/video.test.mjs tests/video-upload.test.mjs tests/nickname-login.test.mjs tests/account-password.test.mjs",
+    "test": "node --test tests/post-mutations.test.mjs tests/database.test.mjs tests/video.test.mjs tests/video-upload.test.mjs tests/nickname-login.test.mjs tests/account-password.test.mjs tests/data-loading.test.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"

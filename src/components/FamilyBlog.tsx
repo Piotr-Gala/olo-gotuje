@@ -59,13 +59,44 @@ export function FamilyBlog({ view, user, sections: initialSections, posts: initi
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
+    let refreshedAt = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const refreshAfter = 50 * 60_000;
+    const paths = [...new Set(posts.flatMap((post) => post.post_images.map((image) => image.storage_path)))];
+    if (!paths.length) { setImageUrls({}); return; }
     async function signImages() {
-      const paths = posts.flatMap((post) => post.post_images.map((image) => image.storage_path));
-      if (!paths.length) { setImageUrls({}); return; }
-      const { data } = await createClient().storage.from("family-post-images").createSignedUrls(paths, 3600);
-      if (!cancelled && data) setImageUrls(Object.fromEntries(data.flatMap((item) => item.path && item.signedUrl ? [[item.path, item.signedUrl]] : [])));
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      clearTimeout(timer);
+      let retryAfter = 60_000;
+      try {
+        const { data, error } = await createClient().storage.from("family-post-images").createSignedUrls(paths, 3600);
+        if (error || !data) return;
+        if (!cancelled) {
+          setImageUrls(Object.fromEntries(data.flatMap((item) => item.path && item.signedUrl ? [[item.path, item.signedUrl]] : [])));
+          refreshedAt = Date.now();
+          retryAfter = data.some(item => item.error) ? 60_000 : refreshAfter;
+        }
+      } catch {
+        // Keep current URLs during transient failures and retry shortly.
+      } finally {
+        inFlight = false;
+        if (!cancelled) timer = setTimeout(() => void signImages(), retryAfter);
+      }
     }
-    void signImages(); return () => { cancelled = true; };
+    function refreshIfDue() {
+      if (document.visibilityState === "visible" && Date.now() - refreshedAt >= refreshAfter) void signImages();
+    }
+    void signImages();
+    document.addEventListener("visibilitychange", refreshIfDue);
+    window.addEventListener("focus", refreshIfDue);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refreshIfDue);
+      window.removeEventListener("focus", refreshIfDue);
+    };
   }, [posts]);
   useEffect(() => () => { if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl); }, [photoPreviewUrl]);
   useEffect(() => {

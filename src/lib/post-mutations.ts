@@ -50,15 +50,29 @@ export async function savePostWithPhotos(
       if (error) throw error;
     }
 
+    const selectedKeys = new Set(files.map((file, index) => JSON.stringify([index, file.name, file.size, file.lastModified])));
+    // Retries may use a different selection. Remove only this session's additions,
+    // leaving attachments that existed before editing untouched.
+    for (const [key, image] of session.images) {
+      if (selectedKeys.has(key)) continue;
+      const { error } = await client.from("post_images").delete().eq("post_id", session.id).eq("id", image.id);
+      if (error) throw error;
+      image.uploaded = false;
+      const { error: storageError } = await client.storage.from("family-post-images").remove([image.path]);
+      if (storageError) throw storageError;
+      session.images.delete(key);
+    }
+
     for (const [index, file] of files.entries()) {
       const key = JSON.stringify([index, file.name, file.size, file.lastModified]);
       let image = session.images.get(key);
       if (!image) {
         const id = crypto.randomUUID();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        image = { id, path: `${session.id}/${id}-${safeName}`, sortOrder: session.imageOffset + session.images.size, uploaded: false };
+        image = { id, path: `${session.id}/${id}-${safeName}`, sortOrder: session.imageOffset + index, uploaded: false };
         session.images.set(key, image);
       }
+      image.sortOrder = session.imageOffset + index;
       if (!image.uploaded) {
         const { error } = await client.storage.from("family-post-images").upload(image.path, file, {
           contentType: file.type, upsert: true,
@@ -74,7 +88,8 @@ export async function savePostWithPhotos(
 
     await beforeCommit?.(session.id);
     // A new post stays private until every selected attachment has been verified.
-    const { data, error } = await client.from("posts").update(values).eq("id", session.id).select(postColumns).single();
+    const { data, error } = await client.from("posts").update(values).eq("id", session.id).select(postColumns)
+      .order("sort_order", { referencedTable: "post_images" }).order("id", { referencedTable: "post_images" }).single();
     if (error) throw error;
     if (!data) throw new Error("The saved post was not returned");
     return data;

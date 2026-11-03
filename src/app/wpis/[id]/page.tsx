@@ -8,6 +8,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { PostVideo } from "@/components/PostVideo";
 import { PostLike } from "@/components/PostLike";
 import { PostComments } from "@/components/PostComments";
+import { fetchAllRows } from "@/lib/pagination";
 
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,7 +31,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   if (error) throw error;
   if (!post) notFound();
   const { data: author } = await supabase.from("family_profiles").select("display_name").eq("id", post.author_id).maybeSingle();
-  const photos = [...post.post_images].sort((a, b) => a.sort_order - b.sort_order);
+  const photos = [...post.post_images].sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id));
   const { data: signedPhotos, error: photosError } = photos.length
     ? await supabase.storage.from("family-post-images").createSignedUrls(photos.map(photo => photo.storage_path), 3600)
     : { data: [], error: null };
@@ -39,9 +40,9 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const cover = photos[0];
   const coverPosition = getCoverPosition(post.metadata);
   const [likesResult, commentsResult, namesResult] = await Promise.all([
-    supabase.from("post_likes").select("user_id").eq("post_id", id),
-    supabase.from("post_comments").select("id,author_id,content,created_at").eq("post_id", id).order("created_at").order("id"),
-    supabase.from("family_profiles").select("id,display_name"),
+    fetchAllRows((from, to) => supabase.from("post_likes").select("user_id").eq("post_id", id).order("user_id").range(from, to)),
+    fetchAllRows((from, to) => supabase.from("post_comments").select("id,author_id,content,created_at").eq("post_id", id).order("created_at").order("id").range(from, to)),
+    fetchAllRows((from, to) => supabase.from("family_profiles").select("id,display_name").order("id").range(from, to)),
   ]);
   if (likesResult.error || commentsResult.error || namesResult.error) throw new Error("Could not load post discussion");
 

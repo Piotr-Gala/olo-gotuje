@@ -9,6 +9,7 @@ import { updateMyFamilyProfile } from "../actions";
 import { PasswordForm } from "@/components/PasswordForm";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AvatarEditor } from "@/components/AvatarEditor";
+import { fetchAllRows } from "@/lib/pagination";
 
 type ProfilePageProps = {
   params: Promise<{ id: string }>;
@@ -31,11 +32,12 @@ export default async function FamilyProfilePage({ params, searchParams }: Profil
 
   const [{ data: profile }, { data: posts, error: postsError }] = await Promise.all([
     supabase.from("family_profiles").select("id, display_name, bio, avatar_path, avatar_x, avatar_y, avatar_zoom").eq("id", id).maybeSingle(),
-    supabase.from("posts")
+    fetchAllRows((from, to) => supabase.from("posts")
       .select("id, title, excerpt, created_at, metadata, post_images(id, storage_path, alt_text, sort_order)")
       .eq("author_id", id)
       .eq("status", "published")
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false }).order("id")
+      .order("sort_order", { referencedTable: "post_images" }).order("id", { referencedTable: "post_images" }).range(from, to)),
   ]);
   if (!profile) notFound();
 

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/browser";
 import { useLanguage } from "./LanguageProvider";
 import { translate } from "@/lib/i18n";
 import { ProfileAvatar } from "./ProfileAvatar";
+import { setPostLiked } from "@/lib/post-likes";
+import { fetchAllRows } from "@/lib/pagination";
 
 export function PostLike({ postId, userId, initialCount, initialLiked, onChange }: {
   postId: string; userId: string; initialCount: number; initialLiked: boolean; onChange?(liked: boolean): void;
@@ -24,7 +26,7 @@ export function PostLike({ postId, userId, initialCount, initialLiked, onChange 
     setLoadingPeople(true); setPeopleFailed(false);
     try {
       const client = createClient();
-      const { data: likes, error } = await client.from("post_likes").select("user_id").eq("post_id", postId).order("created_at");
+      const { data: likes, error } = await fetchAllRows((from, to) => client.from("post_likes").select("user_id").eq("post_id", postId).order("created_at").order("user_id").range(from, to));
       if (error) throw error;
       const ids = (likes ?? []).map(like => like.user_id);
       const { data: profiles, error: profilesError } = ids.length
@@ -47,10 +49,7 @@ export function PostLike({ postId, userId, initialCount, initialLiked, onChange 
     setBusy(true); setFailed(false);
     try {
       const client = createClient();
-      const result = liked
-        ? await client.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId).select("user_id")
-        : await client.from("post_likes").upsert({ post_id: postId, user_id: userId }, { onConflict: "post_id,user_id", ignoreDuplicates: true });
-      if (result.error || (liked && !result.data?.length)) throw new Error("Like not saved");
+      await setPostLiked(client, postId, userId, !liked);
       const { count: total, error } = await client.from("post_likes").select("user_id", { count: "exact", head: true }).eq("post_id", postId);
       setLiked(!liked); onChange?.(!liked);
       setCount(!error && total !== null ? total : Math.max(0, count + (liked ? -1 : 1)));

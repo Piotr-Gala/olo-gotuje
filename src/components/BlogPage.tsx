@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getLanguage } from "@/lib/language-server";
 import { translate } from "@/lib/i18n";
 import { LogoutButton } from "@/components/LogoutButton";
+import { fetchAllRows } from "@/lib/pagination";
 
 export async function BlogPage({ view }: { view: BlogView }) {
   const language = await getLanguage();
@@ -17,15 +18,18 @@ export async function BlogPage({ view }: { view: BlogView }) {
   if (profileError || !profile) return <LoadError language={language} />;
   if (!profile.is_approved) return <PendingAccess language={language} userId={userId} />;
 
-  let postQuery = supabase.from("posts").select("id, section_slug, author_id, author_name, title, slug, excerpt, content, metadata, status, published_at, created_at, post_images(id, storage_path, alt_text, sort_order)").order("created_at", { ascending: false });
+  const postsQuery = () => supabase.from("posts").select("id, section_slug, author_id, author_name, title, slug, excerpt, content, metadata, status, published_at, created_at, post_images(id, storage_path, alt_text, sort_order)")
+    .order("created_at", { ascending: false }).order("id")
+    .order("sort_order", { referencedTable: "post_images" }).order("id", { referencedTable: "post_images" });
+  let postQuery = postsQuery();
   if (view === "home") postQuery = postQuery.eq("status", "published").limit(3);
   if (view === "about") postQuery = postQuery.limit(0);
 
   const [sectionResult, postResult, familyProfileResult, likesResult] = await Promise.all([
     supabase.from("sections").select("slug, title, is_active, sort_order").order("sort_order"),
-    postQuery,
-    supabase.from("family_profiles").select("id, display_name"),
-    supabase.from("post_likes").select("post_id, user_id"),
+    view === "posts" ? fetchAllRows((from, to) => postsQuery().range(from, to)) : postQuery,
+    fetchAllRows((from, to) => supabase.from("family_profiles").select("id, display_name").order("id").range(from, to)),
+    fetchAllRows((from, to) => supabase.from("post_likes").select("post_id, user_id").order("post_id").order("user_id").range(from, to)),
   ]);
   if (sectionResult.error || postResult.error || familyProfileResult.error || likesResult.error) return <LoadError language={language} />;
 
