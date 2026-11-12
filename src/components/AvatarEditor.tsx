@@ -57,8 +57,8 @@ export function AvatarEditor({ userId, name, initialUrl, initialPath, initialX, 
     } finally { setBusy(false); }
   }
   const url = preview ?? initialUrl;
-  return <section className="profile-edit">
-    <h2>{t("profilePhoto")}</h2>
+  return <details className="profile-edit">
+    <summary><h2>{t("profilePhoto")}</h2></summary>
     <div className="profile-form avatar-editor">
       <label>{t("chooseProfilePhoto")}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => void selectFile(event.target.files?.[0])}/></label>
       <small>{t("avatarHint")}</small>
@@ -72,5 +72,5 @@ export function AvatarEditor({ userId, name, initialUrl, initialPath, initialX, 
       {message && <p className={message === "avatarSaved" ? "form-success" : "form-error"} role={message === "avatarSaved" ? "status" : "alert"}>{t(message)}</p>}
       <button className="button orange" type="button" disabled={busy || !url} onClick={() => void save()}>{t(busy ? "commentSaving" : "saveProfilePhoto")}</button>
     </div>
-  </section>;
+  </details>;
 }

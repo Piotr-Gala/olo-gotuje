@@ -5,6 +5,7 @@ import { getLanguage } from "@/lib/language-server";
 import { translate } from "@/lib/i18n";
 import { LogoutButton } from "@/components/LogoutButton";
 import { fetchAllRows } from "@/lib/pagination";
+import { authorProfileColumns, signAuthorAvatars } from "@/lib/author-avatars";
 
 export async function BlogPage({ view }: { view: BlogView }) {
   const language = await getLanguage();
@@ -28,17 +29,19 @@ export async function BlogPage({ view }: { view: BlogView }) {
   const [sectionResult, postResult, familyProfileResult, likesResult] = await Promise.all([
     supabase.from("sections").select("slug, title, is_active, sort_order").order("sort_order"),
     view === "posts" ? fetchAllRows((from, to) => postsQuery().range(from, to)) : postQuery,
-    fetchAllRows((from, to) => supabase.from("family_profiles").select("id, display_name").order("id").range(from, to)),
+    fetchAllRows((from, to) => supabase.from("family_profiles").select(authorProfileColumns).order("id").range(from, to)),
     fetchAllRows((from, to) => supabase.from("post_likes").select("post_id, user_id").order("post_id").order("user_id").range(from, to)),
   ]);
   if (sectionResult.error || postResult.error || familyProfileResult.error || likesResult.error) return <LoadError language={language} />;
+  const posts = postResult.data ?? [];
+  const authors = await signAuthorAvatars(supabase, familyProfileResult.data, [userId, ...posts.map(post => post.author_id)]);
 
   return <FamilyBlog
     view={view}
     user={{ id: userId, name: familyProfileResult.data?.find((familyProfile) => familyProfile.id === userId)?.display_name || profile.display_name || "Użytkownik", role: profile.role }}
     sections={sectionResult.data ?? []}
-    posts={postResult.data ?? []}
-    familyProfiles={familyProfileResult.data ?? []}
+    posts={posts}
+    authors={authors}
     likes={likesResult.data ?? []}
   />;
 }

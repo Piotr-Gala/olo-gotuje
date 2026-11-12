@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { AuthorLink } from "./AuthorLink";
+import type { AuthorProfile } from "@/lib/author-avatars";
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
@@ -9,8 +10,8 @@ import { translate } from "@/lib/i18n";
 
 export type PostComment = { id: string; author_id: string; content: string; created_at: string };
 
-export function PostComments({ postId, userId, canModerate, comments, authorNames }: {
-  postId: string; userId: string; canModerate: boolean; comments: PostComment[]; authorNames: Record<string, string>;
+export function PostComments({ postId, userId, canModerate, comments, authors }: {
+  postId: string; userId: string; canModerate: boolean; comments: PostComment[]; authors: Record<string, AuthorProfile>;
 }) {
   const { language } = useLanguage();
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
@@ -47,7 +48,7 @@ export function PostComments({ postId, userId, canModerate, comments, authorName
     {failed && <p className="form-error" role="alert">{t("commentFailed")}</p>}
     {!comments.length && <p className="form-hint">{t("noComments")}</p>}
     <div className="comment-list">{comments.map(comment => <article className="comment" key={comment.id}>
-      <div className="meta"><Link href={`/profil/${comment.author_id}`}>{authorNames[comment.author_id] ?? t("member")}</Link>
+      <div className="meta"><AuthorLink id={comment.author_id} profile={authors[comment.author_id]} fallbackName={t("member")}/>
         <time dateTime={comment.created_at}>{new Date(comment.created_at).toLocaleString(language === "pl" ? "pl-PL" : "en-US", { timeZone: "Europe/Warsaw" })}</time>
         {(comment.author_id === userId || canModerate) && <button className="text-button danger" disabled={busy} onClick={() => void remove(comment.id)}>{t("delete")}</button>}
       </div>

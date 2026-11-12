@@ -9,6 +9,8 @@ import { PostVideo } from "@/components/PostVideo";
 import { PostLike } from "@/components/PostLike";
 import { PostComments } from "@/components/PostComments";
 import { fetchAllRows } from "@/lib/pagination";
+import { authorProfileColumns, signAuthorAvatars } from "@/lib/author-avatars";
+import { AuthorLink } from "@/components/AuthorLink";
 
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,7 +32,6 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
     .eq("id", id).maybeSingle();
   if (error) throw error;
   if (!post) notFound();
-  const { data: author } = await supabase.from("family_profiles").select("display_name").eq("id", post.author_id).maybeSingle();
   const photos = [...post.post_images].sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id));
   const { data: signedPhotos, error: photosError } = photos.length
     ? await supabase.storage.from("family-post-images").createSignedUrls(photos.map(photo => photo.storage_path), 3600)
@@ -42,9 +43,11 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const [likesResult, commentsResult, namesResult] = await Promise.all([
     fetchAllRows((from, to) => supabase.from("post_likes").select("user_id").eq("post_id", id).order("user_id").range(from, to)),
     fetchAllRows((from, to) => supabase.from("post_comments").select("id,author_id,content,created_at").eq("post_id", id).order("created_at").order("id").range(from, to)),
-    fetchAllRows((from, to) => supabase.from("family_profiles").select("id,display_name").order("id").range(from, to)),
+    fetchAllRows((from, to) => supabase.from("family_profiles").select(authorProfileColumns).order("id").range(from, to)),
   ]);
   if (likesResult.error || commentsResult.error || namesResult.error) throw new Error("Could not load post discussion");
+  const comments = commentsResult.data;
+  const authors = await signAuthorAvatars(supabase, namesResult.data, [post.author_id, ...comments.map(comment => comment.author_id)]);
 
   return <main className="profile-shell post-page">
     <header className="profile-nav">
@@ -56,7 +59,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         <p className="eyebrow">{sectionName(language, post.section_slug, post.section_slug)}</p>
         <h1>{post.title}</h1>
         <div className="meta">
-          <span>{t("author")}: <Link className="profile-author-link" href={`/profil/${post.author_id}`}>{author?.display_name ?? post.author_name}</Link></span>
+          <span className="post-byline">{t("author")}: <AuthorLink id={post.author_id} profile={authors[post.author_id]} fallbackName={post.author_name}/></span>
           <time dateTime={post.created_at}>{new Date(post.created_at).toLocaleDateString(language === "en" ? "en-US" : "pl-PL", { timeZone: "Europe/Warsaw" })}</time>
           <span>{t(post.status === "draft" ? "draft" : "published")}</span>
         </div>
@@ -70,6 +73,6 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         {photos.slice(1).map(photo => photoUrls[photo.storage_path] && <img className="inline-post-image" key={photo.id} src={photoUrls[photo.storage_path]} alt={photo.alt_text || post.title}/>)}
       </div>
     </article>
-    <PostComments postId={id} userId={userId} canModerate={viewer.role === "admin" || viewer.role === "owner"} comments={commentsResult.data ?? []} authorNames={Object.fromEntries((namesResult.data ?? []).map(profile => [profile.id, profile.display_name]))}/>
+    <PostComments postId={id} userId={userId} canModerate={viewer.role === "admin" || viewer.role === "owner"} comments={comments} authors={authors}/>
   </main>;
 }

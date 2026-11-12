@@ -8,7 +8,7 @@ export function PasswordForm({ language }: { language: Language }) {
   const [state, action, pending] = useActionState(updateMyPassword, {});
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
   const success = state.message === "passwordChanged";
-  return <details className="profile-edit password-settings">
+  return <details className="profile-edit">
     <summary><h2>{t("changePassword")}</h2></summary>
     <form action={action} className="profile-form">
       <label>{t("currentPassword")}<input type="password" name="current_password" autoComplete="current-password" required maxLength={4096}/></label>
