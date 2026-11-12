@@ -86,9 +86,9 @@ header nav a[aria-current="page"]{color:var(--orange);text-decoration:underline;
 }
 
 .profile-author-link .profile-avatar {
-  width: 24px;
-  height: 24px;
-  font-size: 10px;
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
 }
 
 .meta:has(.post-byline) {

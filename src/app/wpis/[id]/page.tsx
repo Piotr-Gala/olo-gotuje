@@ -59,7 +59,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         <p className="eyebrow">{sectionName(language, post.section_slug, post.section_slug)}</p>
         <h1>{post.title}</h1>
         <div className="meta">
-          <span className="post-byline">{t("author")}: <AuthorLink id={post.author_id} profile={authors[post.author_id]} fallbackName={post.author_name}/></span>
+          <span className="post-byline"><AuthorLink id={post.author_id} profile={authors[post.author_id]} fallbackName={post.author_name}/></span>
           <time dateTime={post.created_at}>{new Date(post.created_at).toLocaleDateString(language === "en" ? "en-US" : "pl-PL", { timeZone: "Europe/Warsaw" })}</time>
           <span>{t(post.status === "draft" ? "draft" : "published")}</span>
         </div>
